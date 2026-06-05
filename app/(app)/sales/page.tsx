@@ -3,13 +3,14 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { FileText, Loader2, Receipt, Undo2 } from "lucide-react";
+import Link from "next/link";
+import { FileText, Loader2, Receipt, Undo2, Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/provider";
 import { ensureInvoiceForSale } from "@/lib/invoice-actions";
 import { downloadInvoicePdf } from "@/lib/pdf/invoice";
 import { PageHeader } from "@/components/page-header";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -79,7 +80,14 @@ export default function SalesPage() {
 
   return (
     <>
-      <PageHeader title={t("sales.title")} />
+      <PageHeader
+        title={t("sales.title")}
+        action={
+          <Link href="/sell" className={buttonVariants()}>
+            <Plus className="size-4" /> {t("sales.newSale")}
+          </Link>
+        }
+      />
       <Card>
         <CardContent className="p-0">
           {isLoading ? (

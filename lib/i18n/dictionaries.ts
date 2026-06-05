@@ -146,7 +146,8 @@ export const dictionaries = {
 
     "sales.title": "Sales",
     "sales.no": "Sale #",
-    "sales.makeInvoice": "Create invoice",
+    "sales.newSale": "New sale",
+    "sales.makeInvoice": "Invoice (PDF)",
 
     "invoices.title": "Invoices",
     "invoices.no": "Invoice #",
@@ -444,7 +445,8 @@ export const dictionaries = {
 
     "sales.title": "المبيعات",
     "sales.no": "رقم البيع",
-    "sales.makeInvoice": "إنشاء فاتورة",
+    "sales.newSale": "بيع جديد",
+    "sales.makeInvoice": "فاتورة (PDF)",
 
     "invoices.title": "الفواتير",
     "invoices.no": "رقم الفاتورة",

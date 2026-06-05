@@ -4,14 +4,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
-  ShoppingCart,
   Watch,
   PackageOpen,
   Package,
   Landmark,
   Truck,
   Receipt,
-  FileText,
   BarChart3,
   LineChart,
   Users,
@@ -24,12 +22,10 @@ import { cn } from "@/lib/utils";
 
 const NAV: { href: string; key: DictKey; icon: React.ElementType }[] = [
   { href: "/", key: "nav.dashboard", icon: LayoutDashboard },
-  { href: "/sell", key: "nav.sell", icon: ShoppingCart },
   { href: "/products", key: "nav.products", icon: Watch },
   { href: "/purchases", key: "nav.purchases", icon: PackageOpen },
   { href: "/assets", key: "nav.assets", icon: Package },
   { href: "/sales", key: "nav.sales", icon: Receipt },
-  { href: "/invoices", key: "nav.invoices", icon: FileText },
   { href: "/banks", key: "nav.banks", icon: Landmark },
   { href: "/delivery", key: "nav.delivery", icon: Truck },
   { href: "/reports", key: "nav.reports", icon: BarChart3 },
