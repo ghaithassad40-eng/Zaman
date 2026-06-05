@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Zaman Watch — Shein Cart Import",
+  "version": "1.0.0",
+  "description": "Capture your Shein cart in your own session and send it to Zaman Watch Purchasing.",
+  "permissions": ["storage", "activeTab"],
+  "host_permissions": ["https://*.shein.com/*", "https://*.shein.co/*", "https://*.romwe.com/*"],
+  "content_scripts": [
+    {
+      "matches": ["https://*.shein.com/*", "https://*.shein.co/*", "https://*.romwe.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["inject.js"],
+      "matches": ["https://*.shein.com/*", "https://*.shein.co/*", "https://*.romwe.com/*"]
+    }
+  ],
+  "action": { "default_popup": "popup.html", "default_title": "Zaman Shein Import" }
+}

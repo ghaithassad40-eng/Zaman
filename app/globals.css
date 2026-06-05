@@ -1,26 +1,100 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/*
+  Zaman Watch — light theme only. Warm gold brand drawn from the logo.
+  Design tokens follow the shadcn/ui convention so primitives map cleanly.
+*/
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+
+  --font-sans: var(--font-sans), var(--font-arabic), ui-sans-serif, system-ui, sans-serif;
+  --font-arabic: var(--font-arabic);
+
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+:root {
+  --background: #faf8f4;
+  --foreground: #221c10;
+
+  --card: #ffffff;
+  --card-foreground: #221c10;
+
+  --popover: #ffffff;
+  --popover-foreground: #221c10;
+
+  /* Brand gold */
+  --primary: #9a7426;
+  --primary-foreground: #fffaf0;
+
+  --secondary: #f1ead9;
+  --secondary-foreground: #4a3a18;
+
+  --muted: #f3efe6;
+  --muted-foreground: #7a6e57;
+
+  --accent: #efe6cf;
+  --accent-foreground: #4a3a18;
+
+  --destructive: #c0392b;
+  --destructive-foreground: #ffffff;
+
+  --success: #2f8f57;
+  --success-foreground: #ffffff;
+
+  --border: #e7e0d1;
+  --input: #e7e0d1;
+  --ring: #c2a14e;
+
+  --sidebar: #ffffff;
+  --sidebar-foreground: #2a2316;
+}
+
+* {
+  border-color: var(--border);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Logical-property helpers so layouts mirror correctly in RTL */
+.ms-auto { margin-inline-start: auto; }
+.me-auto { margin-inline-end: auto; }
+
+/* Hide scrollbars on horizontal chip rows */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Print: drop the app chrome, show only report content */
+@media print {
+  .no-print { display: none !important; }
+  main { padding: 0 !important; }
 }
