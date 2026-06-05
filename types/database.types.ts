@@ -394,6 +394,7 @@ export type Database = {
           name_ar?: string | null
           brand?: string | null
           category?: string | null
+          description?: string | null
           source?: string
           source_url?: string | null
           image_urls?: string[]
@@ -406,6 +407,7 @@ export type Database = {
           name?: string
           name_ar?: string | null
           brand?: string | null
+          description?: string | null
           source_url?: string | null
           default_selling_price?: number | null
           expected_selling_price?: number | null

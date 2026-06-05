@@ -4,12 +4,13 @@ import { useMemo, useState } from "react";
 import Image from "next/image";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Loader2, Watch, Upload, Search, Pencil } from "lucide-react";
+import { Plus, Loader2, Watch, Upload, Search, Pencil, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/provider";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -38,6 +39,7 @@ type ProductRow = {
   name: string;
   name_ar: string | null;
   brand: string | null;
+  description: string | null;
   source_url: string | null;
   image_urls: string[];
   default_selling_price: number | null;
@@ -54,7 +56,7 @@ function useProducts() {
       const { data, error } = await supabase
         .from("products")
         .select(
-          "id, sku, name, name_ar, brand, source_url, image_urls, default_selling_price, expected_selling_price, is_active, inventory(qty_on_hand, avg_unit_cost)",
+          "id, sku, name, name_ar, brand, description, source_url, image_urls, default_selling_price, expected_selling_price, is_active, inventory(qty_on_hand, avg_unit_cost)",
         )
         .is("deleted_at", null)
         .order("created_at", { ascending: false });
@@ -260,12 +262,14 @@ function ProductDialog({
     name: "",
     name_ar: "",
     brand: "",
+    description: "",
     source_url: "",
     price: "",
     expected: "",
     is_active: true,
   });
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const [existingImages, setExistingImages] = useState<string[]>([]);
   // Sync form whenever the dialog opens for a (different) product.
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
   if (open && (product?.id ?? "new") !== loadedFor) {
@@ -275,23 +279,27 @@ function ProductDialog({
       name: product?.name ?? "",
       name_ar: product?.name_ar ?? "",
       brand: product?.brand ?? "",
+      description: product?.description ?? "",
       source_url: product?.source_url ?? "",
       price: product?.default_selling_price != null ? String(product.default_selling_price) : "",
       expected: product?.expected_selling_price != null ? String(product.expected_selling_price) : "",
       is_active: product?.is_active ?? true,
     });
-    setFile(null);
+    setFiles([]);
+    setExistingImages(product?.image_urls ?? []);
   }
 
   const mutation = useMutation({
     mutationFn: async () => {
-      let imageUrl: string | null = null;
-      if (file) {
-        const path = `${crypto.randomUUID()}-${file.name.replace(/[^\w.\-]/g, "_")}`;
-        const { error: upErr } = await supabase.storage.from("product-images").upload(path, file, { upsert: false });
+      // Upload any newly-selected photos.
+      const newUrls: string[] = [];
+      for (const f of files) {
+        const path = `${crypto.randomUUID()}-${f.name.replace(/[^\w.\-]/g, "_")}`;
+        const { error: upErr } = await supabase.storage.from("product-images").upload(path, f, { upsert: false });
         if (upErr) throw upErr;
-        imageUrl = supabase.storage.from("product-images").getPublicUrl(path).data.publicUrl;
+        newUrls.push(supabase.storage.from("product-images").getPublicUrl(path).data.publicUrl);
       }
+      const imageUrls = [...existingImages, ...newUrls];
       const { data: userData } = await supabase.auth.getUser();
 
       if (isEdit && product) {
@@ -300,13 +308,14 @@ function ProductDialog({
           name: form.name.trim(),
           name_ar: form.name_ar.trim() || null,
           brand: form.brand.trim() || null,
+          description: form.description.trim() || null,
           source_url: form.source_url.trim() || null,
+          image_urls: imageUrls,
           default_selling_price: form.price ? Number(form.price) : null,
           expected_selling_price: form.expected ? Number(form.expected) : null,
           is_active: form.is_active,
           updated_by: userData.user?.id,
         };
-        if (imageUrl) patch.image_urls = [imageUrl];
         const { error } = await supabase.from("products").update(patch).eq("id", product.id);
         if (error) throw error;
       } else {
@@ -317,9 +326,10 @@ function ProductDialog({
             name: form.name.trim(),
             name_ar: form.name_ar.trim() || null,
             brand: form.brand.trim() || null,
+            description: form.description.trim() || null,
             source: "shein",
             source_url: form.source_url.trim() || null,
-            image_urls: imageUrl ? [imageUrl] : [],
+            image_urls: imageUrls,
             default_selling_price: form.price ? Number(form.price) : null,
             expected_selling_price: form.expected ? Number(form.expected) : null,
             created_by: userData.user?.id,
@@ -372,6 +382,15 @@ function ProductDialog({
             <Input dir="rtl" value={form.name_ar} onChange={(e) => setForm({ ...form, name_ar: e.target.value })} />
           </div>
           <div className="space-y-1.5 sm:col-span-2">
+            <Label>{t("products.description")}</Label>
+            <Textarea
+              rows={3}
+              placeholder="e.g. movement, strap material, size, color…"
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+            />
+          </div>
+          <div className="space-y-1.5 sm:col-span-2">
             <Label>Shein URL</Label>
             <Input dir="ltr" placeholder="https://shein.com/..." value={form.source_url} onChange={(e) => setForm({ ...form, source_url: e.target.value })} />
           </div>
@@ -383,13 +402,48 @@ function ProductDialog({
             <Label>{t("products.expectedPrice")} (JOD)</Label>
             <Input type="number" step="0.001" dir="ltr" value={form.expected} onChange={(e) => setForm({ ...form, expected: e.target.value })} />
           </div>
-          <div className="space-y-1.5">
-            <Label>{t("products.images")}</Label>
-            <label className="flex h-10 cursor-pointer items-center gap-2 rounded-md border border-dashed px-3 text-sm text-muted-foreground hover:bg-accent">
-              <Upload className="size-4" />
-              <span className="truncate">{file ? file.name : (isEdit ? t("common.edit") : t("products.images"))}</span>
-              <input type="file" accept="image/*" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-            </label>
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label>{t("products.photos")}</Label>
+            <div className="flex flex-wrap gap-2">
+              {existingImages.map((url, i) => (
+                <div key={url} className="group relative size-20 overflow-hidden rounded-md border bg-muted">
+                  <Image src={url} alt="" width={80} height={80} className="size-20 object-cover" unoptimized />
+                  <button
+                    type="button"
+                    onClick={() => setExistingImages((p) => p.filter((_, idx) => idx !== i))}
+                    className="absolute end-0.5 top-0.5 rounded-full bg-black/60 p-0.5 text-white opacity-0 transition group-hover:opacity-100"
+                    aria-label="remove"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                </div>
+              ))}
+              {files.map((f, i) => (
+                <div key={i} className="group relative size-20 overflow-hidden rounded-md border bg-muted">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={URL.createObjectURL(f)} alt="" className="size-20 object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => setFiles((p) => p.filter((_, idx) => idx !== i))}
+                    className="absolute end-0.5 top-0.5 rounded-full bg-black/60 p-0.5 text-white opacity-0 transition group-hover:opacity-100"
+                    aria-label="remove"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                </div>
+              ))}
+              <label className="flex size-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-md border border-dashed text-xs text-muted-foreground hover:bg-accent">
+                <Upload className="size-4" />
+                <span>{t("products.addPhotos")}</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => setFiles((p) => [...p, ...Array.from(e.target.files ?? [])])}
+                />
+              </label>
+            </div>
           </div>
 
           {isEdit && (
