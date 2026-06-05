@@ -98,6 +98,15 @@ export const dictionaries = {
     "products.avgCost": "Avg cost",
     "products.active": "Active (available to sell)",
 
+    "inventory.adjust": "Adjust",
+    "inventory.adjustTitle": "Adjust stock",
+    "inventory.currentQty": "Current quantity",
+    "inventory.newQty": "New quantity (counted)",
+    "inventory.reason": "Reason",
+    "inventory.reasonPlaceholder": "e.g. recount, damaged, lost, found, gift",
+    "inventory.adjusted": "Stock adjusted",
+    "inventory.change": "Change",
+
     "purchases.title": "Purchases (Shein)",
     "purchases.add": "New purchase",
     "purchases.reference": "Shein order #",
@@ -377,6 +386,15 @@ export const dictionaries = {
     "products.onHand": "المتوفر",
     "products.avgCost": "متوسط التكلفة",
     "products.active": "نشط (متاح للبيع)",
+
+    "inventory.adjust": "تعديل",
+    "inventory.adjustTitle": "تعديل المخزون",
+    "inventory.currentQty": "الكمية الحالية",
+    "inventory.newQty": "الكمية الجديدة (المجرودة)",
+    "inventory.reason": "السبب",
+    "inventory.reasonPlaceholder": "مثال: جرد، تالف، مفقود، موجود، هدية",
+    "inventory.adjusted": "تم تعديل المخزون",
+    "inventory.change": "التغيير",
 
     "purchases.title": "المشتريات (شي إن)",
     "purchases.add": "مشترى جديد",

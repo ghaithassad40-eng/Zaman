@@ -590,6 +590,10 @@ export type Database = {
     }
     Views: { [_ in never]: never }
     Functions: {
+      adjust_inventory: {
+        Args: { p_product_id: string; p_new_qty: number; p_note?: string }
+        Returns: undefined
+      }
       claim_partner_seat: {
         Args: { p_full_name: string; p_name_ar?: string }
         Returns: unknown
