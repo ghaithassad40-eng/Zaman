@@ -181,19 +181,9 @@ export default function PurchasesPage() {
                     </TableCell>
                     <TableCell className="text-end">
                       {p.status !== "received" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={receive.isPending}
-                          onClick={() => receive.mutate(p.id)}
-                        >
-                          {receive.isPending ? (
-                            <Loader2 className="size-4 animate-spin" />
-                          ) : (
-                            <PackageCheck className="size-4" />
-                          )}
-                          {t("purchases.receive")}
-                        </Button>
+                        <Link href={`/purchases/${p.id}/receive`} className={buttonVariants({ variant: "outline", size: "sm" })}>
+                          <PackageCheck className="size-4" /> {t("purchases.receive")}
+                        </Link>
                       )}
                     </TableCell>
                   </TableRow>

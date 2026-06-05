@@ -446,6 +446,11 @@ export type Database = {
           sku: string | null
           unit_cost_jod: number
           unit_cost_src: number
+          received: boolean
+          qc_quality: boolean
+          qc_working: boolean
+          qc_repackage: boolean
+          to_return: boolean
         }
         Insert: {
           purchase_id: string
@@ -465,6 +470,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_items_purchase_id_fkey"
+            columns: ["purchase_id"]
+            isOneToOne: false
+            referencedRelation: "purchases"
             referencedColumns: ["id"]
           },
         ]
@@ -570,6 +582,8 @@ export type Database = {
           subtotal: number
           total: number
           total_cost: number
+          fulfillment_stage: number
+          return_stage: number
           updated_at: string
           updated_by: string | null
         }
@@ -589,7 +603,12 @@ export type Database = {
           packaging_cost?: number
           created_by?: string | null
         }
-        Update: { status?: Database["public"]["Enums"]["sale_status"] }
+        Update: {
+          status?: Database["public"]["Enums"]["sale_status"]
+          payment_status?: Database["public"]["Enums"]["payment_status"]
+          fulfillment_stage?: number
+          return_stage?: number
+        }
         Relationships: [
           {
             foreignKeyName: "sales_customer_id_fkey"
@@ -613,6 +632,7 @@ export type Database = {
       }
       confirm_sale: { Args: { p_sale_id: string }; Returns: undefined }
       default_account_id: { Args: never; Returns: string }
+      finalize_receiving: { Args: { p_purchase_id: string }; Returns: undefined }
       get_financials: { Args: { p_from: string; p_to: string }; Returns: Json }
       is_partner: { Args: never; Returns: boolean }
       next_doc_no: { Args: { p_type: string }; Returns: string }
