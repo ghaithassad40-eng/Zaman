@@ -31,6 +31,24 @@ import {
 } from "@/components/ui/dialog";
 import { formatJOD, num3, round3 } from "@/lib/utils";
 import type { Tables } from "@/types/database.types";
+import { ImportControls } from "@/components/import-controls";
+import { numOr, type Col } from "@/lib/xlsx-utils";
+
+const PKG_COLS: Col[] = [
+  { key: "name", header: "Name" },
+  { key: "name_ar", header: "Name (Arabic)" },
+  { key: "kind", header: "Type (consumable/equipment)" },
+  { key: "category", header: "Category (box/bag/label/gift/printer/other)" },
+  { key: "purchase_cost", header: "Total Cost (JOD)" },
+  { key: "qty_purchased", header: "Qty Bought" },
+  { key: "qty_remaining", header: "Qty Remaining" },
+  { key: "expected_uses", header: "Expected Uses (equipment)" },
+  { key: "qty_per_order", header: "Used Per Parcel" },
+];
+const PKG_EXAMPLE = [
+  { name: "Shipping box", name_ar: "علبة شحن", kind: "consumable", category: "box", purchase_cost: 10, qty_purchased: 100, qty_remaining: 100, expected_uses: "", qty_per_order: 1 },
+  { name: "Thermal printer", name_ar: "طابعة حرارية", kind: "equipment", category: "printer", purchase_cost: 50, qty_purchased: 1, qty_remaining: "", expected_uses: 5000, qty_per_order: 1 },
+];
 
 const CATEGORY_ICON: Record<string, React.ElementType> = {
   box: Box,
@@ -52,7 +70,37 @@ export default function AssetsPage() {
   const { t, locale } = useI18n();
   const supabase = createClient();
   const { data: settings } = useCompanySettings();
+  const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+
+  async function importAssets(rows: Record<string, string>[]) {
+    const { data: userData } = await supabase.auth.getUser();
+    let created = 0;
+    const errors: string[] = [];
+    for (const r of rows) {
+      if (!r.name) { errors.push("Row missing Name"); continue; }
+      const kind = (r.kind || "").toLowerCase() === "equipment" ? "equipment" : "consumable";
+      const qtyPurchased = Math.max(1, Math.round(numOr(r.qty_purchased, 1)));
+      const { error } = await supabase.from("packaging_assets").insert({
+        name: r.name,
+        name_ar: r.name_ar || null,
+        kind,
+        category: r.category || null,
+        purchase_cost: numOr(r.purchase_cost),
+        qty_purchased: kind === "consumable" ? qtyPurchased : 1,
+        qty_remaining: kind === "consumable" ? (r.qty_remaining ? Math.round(numOr(r.qty_remaining)) : qtyPurchased) : null,
+        expected_uses: kind === "equipment" ? Math.round(numOr(r.expected_uses)) || null : null,
+        qty_per_order: Math.max(1, Math.round(numOr(r.qty_per_order, 1))),
+        created_by: userData.user?.id,
+      });
+      if (error) { errors.push(`${r.name}: ${error.message}`); continue; }
+      created++;
+    }
+    qc.invalidateQueries({ queryKey: ["packaging_assets"] });
+    qc.invalidateQueries({ queryKey: ["company_settings"] });
+    qc.invalidateQueries({ queryKey: ["banks"] });
+    return { created, skipped: errors.length, errors };
+  }
 
   const { data, isLoading } = useQuery({
     queryKey: ["packaging_assets"],
@@ -73,9 +121,12 @@ export default function AssetsPage() {
         title={t("assets.title")}
         description={t("assets.subtitle")}
         action={
-          <Button onClick={() => setOpen(true)}>
-            <Plus className="size-4" /> {t("assets.add")}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <ImportControls templateName="zaman-packaging-template.xlsx" cols={PKG_COLS} examples={PKG_EXAMPLE} onImport={importAssets} size="sm" />
+            <Button onClick={() => setOpen(true)}>
+              <Plus className="size-4" /> {t("assets.add")}
+            </Button>
+          </div>
         }
       />
 

@@ -98,6 +98,11 @@ export const dictionaries = {
     "products.avgCost": "Avg cost",
     "products.active": "Active (available to sell)",
 
+    "import.template": "Template",
+    "import.upload": "Upload Excel",
+    "import.created": "added",
+    "import.skipped": "skipped",
+
     "inventory.adjust": "Adjust",
     "inventory.adjustTitle": "Adjust stock",
     "inventory.currentQty": "Current quantity",
@@ -386,6 +391,11 @@ export const dictionaries = {
     "products.onHand": "المتوفر",
     "products.avgCost": "متوسط التكلفة",
     "products.active": "نشط (متاح للبيع)",
+
+    "import.template": "قالب",
+    "import.upload": "رفع ملف Excel",
+    "import.created": "أُضيفت",
+    "import.skipped": "تم تخطيها",
 
     "inventory.adjust": "تعديل",
     "inventory.adjustTitle": "تعديل المخزون",

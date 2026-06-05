@@ -28,6 +28,23 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { formatJOD, round3 } from "@/lib/utils";
+import { ImportControls } from "@/components/import-controls";
+import { numOr, type Col } from "@/lib/xlsx-utils";
+
+const INV_COLS: Col[] = [
+  { key: "sku", header: "SKU" },
+  { key: "name", header: "Name" },
+  { key: "name_ar", header: "Name (Arabic)" },
+  { key: "brand", header: "Brand" },
+  { key: "description", header: "Description" },
+  { key: "selling_price", header: "Selling Price (JOD)" },
+  { key: "expected_price", header: "Expected Price (JOD)" },
+  { key: "qty", header: "Quantity" },
+  { key: "unit_cost", header: "Unit Cost (JOD)" },
+];
+const INV_EXAMPLE = [
+  { sku: "sj2401234567", name: "BIDEN Mens Watch Black", name_ar: "ساعة بايدن رجالي اسود", brand: "BIDEN", description: "Stainless steel, quartz", selling_price: 18, expected_price: 20, qty: 5, unit_cost: 6.5 },
+];
 
 type Row = {
   product_id: string;
@@ -39,7 +56,48 @@ type Row = {
 export default function InventoryPage() {
   const { t, locale } = useI18n();
   const supabase = createClient();
+  const qc = useQueryClient();
   const [adjust, setAdjust] = useState<Row | null>(null);
+
+  async function importInventory(rows: Record<string, string>[]) {
+    const { data: userData } = await supabase.auth.getUser();
+    let created = 0;
+    const errors: string[] = [];
+    for (const r of rows) {
+      if (!r.sku || !r.name) { errors.push("Row missing SKU or Name"); continue; }
+      const { data: prod, error } = await supabase
+        .from("products")
+        .upsert(
+          {
+            sku: r.sku,
+            name: r.name,
+            name_ar: r.name_ar || null,
+            brand: r.brand || null,
+            description: r.description || null,
+            source: "manual",
+            default_selling_price: r.selling_price ? numOr(r.selling_price) : null,
+            expected_selling_price: r.expected_price ? numOr(r.expected_price) : null,
+            created_by: userData.user?.id,
+          },
+          { onConflict: "sku" },
+        )
+        .select("id")
+        .single();
+      if (error || !prod) { errors.push(`${r.sku}: ${error?.message ?? "failed"}`); continue; }
+      const { error: invErr } = await supabase
+        .from("inventory")
+        .upsert(
+          { product_id: prod.id, qty_on_hand: Math.max(0, Math.round(numOr(r.qty))), avg_unit_cost: numOr(r.unit_cost) },
+          { onConflict: "product_id" },
+        );
+      if (invErr) { errors.push(`${r.sku}: ${invErr.message}`); continue; }
+      created++;
+    }
+    qc.invalidateQueries({ queryKey: ["inventory"] });
+    qc.invalidateQueries({ queryKey: ["products"] });
+    qc.invalidateQueries({ queryKey: ["sellable_products"] });
+    return { created, skipped: errors.length, errors };
+  }
 
   const { data, isLoading } = useQuery({
     queryKey: ["inventory"],
@@ -76,6 +134,7 @@ export default function InventoryPage() {
       <PageHeader
         title={t("nav.inventory")}
         description={`${t("dashboard.stockValue")}: ${formatJOD(totalValue, locale)}`}
+        action={<ImportControls templateName="zaman-inventory-template.xlsx" cols={INV_COLS} examples={INV_EXAMPLE} onImport={importInventory} />}
       />
       <div className="relative mb-4 max-w-sm">
         <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
