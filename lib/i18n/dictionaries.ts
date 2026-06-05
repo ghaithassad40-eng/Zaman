@@ -81,7 +81,7 @@ export const dictionaries = {
     "dashboard.roas": "ROAS (rev ÷ ads)",
     "dashboard.addExpense": "Add expense",
 
-    "products.title": "Products",
+    "products.title": "Products & Inventory",
     "products.add": "Add product",
     "products.sku": "SKU",
     "products.sellingPrice": "Selling price",
@@ -96,6 +96,10 @@ export const dictionaries = {
     "products.import": "Import from Shein",
     "products.onHand": "On hand",
     "products.avgCost": "Avg cost",
+    "products.openingQty": "Opening qty",
+    "products.actualCost": "Actual cost",
+    "products.soldQty": "Sold qty",
+    "products.avgSellPrice": "Avg selling price",
     "products.active": "Active (available to sell)",
 
     "import.template": "Template",
@@ -375,7 +379,7 @@ export const dictionaries = {
     "dashboard.roas": "العائد على الإعلان",
     "dashboard.addExpense": "إضافة مصروف",
 
-    "products.title": "المنتجات",
+    "products.title": "المنتجات والمخزون",
     "products.add": "إضافة منتج",
     "products.sku": "رمز المنتج (SKU)",
     "products.sellingPrice": "سعر البيع",
@@ -390,6 +394,10 @@ export const dictionaries = {
     "products.import": "استيراد من شي إن",
     "products.onHand": "المتوفر",
     "products.avgCost": "متوسط التكلفة",
+    "products.openingQty": "الكمية الافتتاحية",
+    "products.actualCost": "التكلفة الفعلية",
+    "products.soldQty": "الكمية المباعة",
+    "products.avgSellPrice": "متوسط سعر البيع",
     "products.active": "نشط (متاح للبيع)",
 
     "import.template": "قالب",

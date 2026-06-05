@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Image from "next/image";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Loader2, Watch, Upload, Search, Pencil, X } from "lucide-react";
+import { Plus, Loader2, Watch, Upload, Search, Pencil, X, SlidersHorizontal } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/provider";
 import { PageHeader } from "@/components/page-header";
@@ -30,8 +30,27 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { formatJOD, round3 } from "@/lib/utils";
+import { formatJOD, num3, round3 } from "@/lib/utils";
 import type { TablesUpdate } from "@/types/database.types";
+import { ImportControls } from "@/components/import-controls";
+import { numOr, type Col } from "@/lib/xlsx-utils";
+
+const PROD_COLS: Col[] = [
+  { key: "sku", header: "SKU" },
+  { key: "name", header: "Name" },
+  { key: "name_ar", header: "Name (Arabic)" },
+  { key: "brand", header: "Brand" },
+  { key: "description", header: "Description" },
+  { key: "opening_qty", header: "Opening Balance Qty" },
+  { key: "actual_cost", header: "Actual Cost (JOD)" },
+  { key: "sold_qty", header: "Sold Qty" },
+  { key: "avg_selling_price", header: "Avg Selling Price (JOD)" },
+  { key: "selling_price", header: "Selling Price (JOD)" },
+  { key: "expected_price", header: "Expected Selling Price (JOD)" },
+];
+const PROD_EXAMPLE = [
+  { sku: "sj2401234567", name: "BIDEN Mens Watch Black", name_ar: "ساعة بايدن رجالي اسود", brand: "BIDEN", description: "Stainless steel, quartz", opening_qty: 10, actual_cost: 6.5, sold_qty: 3, avg_selling_price: 18, selling_price: 18, expected_price: 20 },
+];
 
 type ProductRow = {
   id: string;
@@ -44,6 +63,10 @@ type ProductRow = {
   image_urls: string[];
   default_selling_price: number | null;
   expected_selling_price: number | null;
+  opening_qty: number;
+  actual_cost: number | null;
+  avg_selling_price: number | null;
+  historical_units_sold: number;
   is_active: boolean;
   inventory: { qty_on_hand: number; avg_unit_cost: number } | null;
 };
@@ -56,7 +79,7 @@ function useProducts() {
       const { data, error } = await supabase
         .from("products")
         .select(
-          "id, sku, name, name_ar, brand, description, source_url, image_urls, default_selling_price, expected_selling_price, is_active, inventory(qty_on_hand, avg_unit_cost)",
+          "id, sku, name, name_ar, brand, description, source_url, image_urls, default_selling_price, expected_selling_price, opening_qty, actual_cost, avg_selling_price, historical_units_sold, is_active, inventory(qty_on_hand, avg_unit_cost)",
         )
         .is("deleted_at", null)
         .order("created_at", { ascending: false });
@@ -68,9 +91,58 @@ function useProducts() {
 
 export default function ProductsPage() {
   const { t, locale } = useI18n();
+  const supabase = createClient();
+  const qc = useQueryClient();
   const { data, isLoading } = useProducts();
   const [dialog, setDialog] = useState<{ open: boolean; product: ProductRow | null }>({ open: false, product: null });
+  const [adjust, setAdjust] = useState<ProductRow | null>(null);
   const [search, setSearch] = useState("");
+
+  async function importProducts(rows: Record<string, string>[]) {
+    const { data: userData } = await supabase.auth.getUser();
+    let created = 0;
+    const errors: string[] = [];
+    for (const r of rows) {
+      if (!r.sku || !r.name) { errors.push("Row missing SKU or Name"); continue; }
+      const opening = Math.max(0, Math.round(numOr(r.opening_qty)));
+      const sold = Math.max(0, Math.round(numOr(r.sold_qty)));
+      const actualCost = numOr(r.actual_cost);
+      const avgSell = numOr(r.avg_selling_price);
+      const { data: prod, error } = await supabase
+        .from("products")
+        .upsert(
+          {
+            sku: r.sku,
+            name: r.name,
+            name_ar: r.name_ar || null,
+            brand: r.brand || null,
+            description: r.description || null,
+            source: "manual",
+            opening_qty: opening,
+            actual_cost: r.actual_cost ? actualCost : null,
+            avg_selling_price: r.avg_selling_price ? avgSell : null,
+            historical_units_sold: sold,
+            historical_revenue: round3(avgSell * sold),
+            default_selling_price: r.selling_price ? numOr(r.selling_price) : null,
+            expected_selling_price: r.expected_price ? numOr(r.expected_price) : null,
+            created_by: userData.user?.id,
+          },
+          { onConflict: "sku" },
+        )
+        .select("id")
+        .single();
+      if (error || !prod) { errors.push(`${r.sku}: ${error?.message ?? "failed"}`); continue; }
+      const { error: invErr } = await supabase
+        .from("inventory")
+        .upsert({ product_id: prod.id, qty_on_hand: Math.max(0, opening - sold), avg_unit_cost: actualCost }, { onConflict: "product_id" });
+      if (invErr) { errors.push(`${r.sku}: ${invErr.message}`); continue; }
+      created++;
+    }
+    qc.invalidateQueries({ queryKey: ["products"] });
+    qc.invalidateQueries({ queryKey: ["sellable_products"] });
+    qc.invalidateQueries({ queryKey: ["analytics"] });
+    return { created, skipped: errors.length, errors };
+  }
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -103,9 +175,12 @@ export default function ProductsPage() {
         title={t("products.title")}
         description={t("products.import")}
         action={
-          <Button onClick={() => setDialog({ open: true, product: null })}>
-            <Plus className="size-4" /> {t("products.add")}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <ImportControls templateName="zaman-products-template.xlsx" cols={PROD_COLS} examples={PROD_EXAMPLE} onImport={importProducts} size="sm" />
+            <Button onClick={() => setDialog({ open: true, product: null })}>
+              <Plus className="size-4" /> {t("products.add")}
+            </Button>
+          </div>
         }
       />
 
@@ -150,10 +225,12 @@ export default function ProductsPage() {
                 <TableRow>
                   <TableHead>{t("common.name")}</TableHead>
                   <TableHead>{t("products.sku")}</TableHead>
+                  <TableHead className="text-end">{t("products.openingQty")}</TableHead>
+                  <TableHead className="text-end">{t("products.soldQty")}</TableHead>
                   <TableHead className="text-end">{t("products.onHand")}</TableHead>
-                  <TableHead className="text-end">{t("products.avgCost")}</TableHead>
+                  <TableHead className="text-end">{t("products.actualCost")}</TableHead>
+                  <TableHead className="text-end">{t("products.avgSellPrice")}</TableHead>
                   <TableHead className="text-end">{t("products.sellingPrice")}</TableHead>
-                  <TableHead className="text-end">{t("products.expectedPrice")}</TableHead>
                   <TableHead className="text-end">{t("common.actions")}</TableHead>
                 </TableRow>
               </TableHeader>
@@ -191,28 +268,40 @@ export default function ProductsPage() {
                       </div>
                     </TableCell>
                     <TableCell className="font-mono text-xs">{p.sku}</TableCell>
+                    <TableCell className="text-end text-muted-foreground">{p.opening_qty}</TableCell>
+                    <TableCell className="text-end text-muted-foreground">{p.historical_units_sold}</TableCell>
                     <TableCell className="text-end">
                       <Badge variant={(p.inventory?.qty_on_hand ?? 0) > 0 ? "success" : "secondary"}>
                         {p.inventory?.qty_on_hand ?? 0}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-end text-muted-foreground">
-                      {formatJOD(p.inventory?.avg_unit_cost ?? 0, locale)}
+                      {p.actual_cost != null ? num3(p.actual_cost) : num3(p.inventory?.avg_unit_cost ?? 0)}
+                    </TableCell>
+                    <TableCell className="text-end text-muted-foreground">
+                      {p.avg_selling_price ? num3(p.avg_selling_price) : "—"}
                     </TableCell>
                     <TableCell className="text-end font-medium">
                       {p.default_selling_price ? formatJOD(p.default_selling_price, locale) : "—"}
                     </TableCell>
-                    <TableCell className="text-end text-muted-foreground">
-                      {p.expected_selling_price ? formatJOD(p.expected_selling_price, locale) : "—"}
-                    </TableCell>
                     <TableCell className="text-end">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={(e) => { e.stopPropagation(); setDialog({ open: true, product: p }); }}
-                      >
-                        <Pencil className="size-4" /> {t("common.edit")}
-                      </Button>
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={(e) => { e.stopPropagation(); setDialog({ open: true, product: p }); }}
+                        >
+                          <Pencil className="size-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={(e) => { e.stopPropagation(); setAdjust(p); }}
+                          title={t("inventory.adjust")}
+                        >
+                          <SlidersHorizontal className="size-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -239,7 +328,83 @@ export default function ProductsPage() {
         product={dialog.product}
         onClose={() => setDialog({ open: false, product: null })}
       />
+      <AdjustDialog product={adjust} onClose={() => setAdjust(null)} />
     </>
+  );
+}
+
+function AdjustDialog({ product, onClose }: { product: ProductRow | null; onClose: () => void }) {
+  const { t, locale } = useI18n();
+  const supabase = createClient();
+  const qc = useQueryClient();
+  const [qty, setQty] = useState("");
+  const [reason, setReason] = useState("");
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+
+  const onHand = product?.inventory?.qty_on_hand ?? 0;
+  if (product && product.id !== loadedFor) {
+    setLoadedFor(product.id);
+    setQty(String(onHand));
+    setReason("");
+  }
+  const change = product ? (Number(qty) || 0) - onHand : 0;
+
+  const adjust = useMutation({
+    mutationFn: async () => {
+      if (!product) return;
+      const { error } = await supabase.rpc("adjust_inventory", {
+        p_product_id: product.id,
+        p_new_qty: Math.max(0, Math.round(Number(qty) || 0)),
+        p_note: reason.trim() || undefined,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success(t("inventory.adjusted"));
+      qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["sellable_products"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      onClose();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <Dialog open={!!product} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent onClose={onClose}>
+        <DialogHeader>
+          <DialogTitle>{t("inventory.adjustTitle")}</DialogTitle>
+        </DialogHeader>
+        {product && (
+          <form onSubmit={(e) => { e.preventDefault(); adjust.mutate(); }} className="space-y-4">
+            <div className="rounded-md border bg-muted/40 p-3 text-sm">
+              <div className="font-medium">{locale === "ar" && product.name_ar ? product.name_ar : product.name}</div>
+              <div className="text-muted-foreground">{t("inventory.currentQty")}: <span className="font-semibold text-foreground">{onHand}</span></div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t("inventory.newQty")} *</Label>
+              <Input required type="number" min={0} dir="ltr" value={qty} onChange={(e) => setQty(e.target.value)} />
+              {change !== 0 && (
+                <p className={"text-xs " + (change > 0 ? "text-success" : "text-destructive")}>
+                  {t("inventory.change")}: {change > 0 ? "+" : ""}{change}
+                </p>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t("inventory.reason")}</Label>
+              <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder={t("inventory.reasonPlaceholder")} />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={onClose}>{t("common.cancel")}</Button>
+              <Button type="submit" disabled={adjust.isPending || change === 0}>
+                {adjust.isPending && <Loader2 className="size-4 animate-spin" />}
+                {t("common.save")}
+              </Button>
+            </div>
+          </form>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -266,6 +431,10 @@ function ProductDialog({
     source_url: "",
     price: "",
     expected: "",
+    opening: "0",
+    actual: "",
+    sold: "0",
+    avgSell: "",
     is_active: true,
   });
   const [files, setFiles] = useState<File[]>([]);
@@ -283,6 +452,10 @@ function ProductDialog({
       source_url: product?.source_url ?? "",
       price: product?.default_selling_price != null ? String(product.default_selling_price) : "",
       expected: product?.expected_selling_price != null ? String(product.expected_selling_price) : "",
+      opening: product?.opening_qty != null ? String(product.opening_qty) : "0",
+      actual: product?.actual_cost != null ? String(product.actual_cost) : "",
+      sold: product?.historical_units_sold != null ? String(product.historical_units_sold) : "0",
+      avgSell: product?.avg_selling_price != null ? String(product.avg_selling_price) : "",
       is_active: product?.is_active ?? true,
     });
     setFiles([]);
@@ -302,6 +475,11 @@ function ProductDialog({
       const imageUrls = [...existingImages, ...newUrls];
       const { data: userData } = await supabase.auth.getUser();
 
+      const opening = Math.max(0, Math.round(numOr(form.opening)));
+      const sold = Math.max(0, Math.round(numOr(form.sold)));
+      const actualCost = form.actual ? numOr(form.actual) : null;
+      const avgSell = form.avgSell ? numOr(form.avgSell) : null;
+
       if (isEdit && product) {
         const patch: TablesUpdate<"products"> = {
           sku: form.sku.trim(),
@@ -313,11 +491,19 @@ function ProductDialog({
           image_urls: imageUrls,
           default_selling_price: form.price ? Number(form.price) : null,
           expected_selling_price: form.expected ? Number(form.expected) : null,
+          opening_qty: opening,
+          actual_cost: actualCost,
+          avg_selling_price: avgSell,
+          historical_units_sold: sold,
+          historical_revenue: round3((avgSell ?? 0) * sold),
           is_active: form.is_active,
           updated_by: userData.user?.id,
         };
         const { error } = await supabase.from("products").update(patch).eq("id", product.id);
         if (error) throw error;
+        if (actualCost != null) {
+          await supabase.from("inventory").update({ avg_unit_cost: actualCost }).eq("product_id", product.id);
+        }
       } else {
         const { data: created, error } = await supabase
           .from("products")
@@ -327,17 +513,26 @@ function ProductDialog({
             name_ar: form.name_ar.trim() || null,
             brand: form.brand.trim() || null,
             description: form.description.trim() || null,
-            source: "shein",
+            source: "manual",
             source_url: form.source_url.trim() || null,
             image_urls: imageUrls,
             default_selling_price: form.price ? Number(form.price) : null,
             expected_selling_price: form.expected ? Number(form.expected) : null,
+            opening_qty: opening,
+            actual_cost: actualCost,
+            avg_selling_price: avgSell,
+            historical_units_sold: sold,
+            historical_revenue: round3((avgSell ?? 0) * sold),
             created_by: userData.user?.id,
           })
           .select("id")
           .single();
         if (error) throw error;
-        await supabase.from("inventory").insert({ product_id: created.id });
+        await supabase.from("inventory").insert({
+          product_id: created.id,
+          qty_on_hand: Math.max(0, opening - sold),
+          avg_unit_cost: actualCost ?? 0,
+        });
       }
     },
     onSuccess: () => {
@@ -401,6 +596,22 @@ function ProductDialog({
           <div className="space-y-1.5">
             <Label>{t("products.expectedPrice")} (JOD)</Label>
             <Input type="number" step="0.001" dir="ltr" value={form.expected} onChange={(e) => setForm({ ...form, expected: e.target.value })} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>{t("products.openingQty")}</Label>
+            <Input type="number" dir="ltr" value={form.opening} onChange={(e) => setForm({ ...form, opening: e.target.value })} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>{t("products.soldQty")}</Label>
+            <Input type="number" dir="ltr" value={form.sold} onChange={(e) => setForm({ ...form, sold: e.target.value })} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>{t("products.actualCost")} (JOD)</Label>
+            <Input type="number" step="0.001" dir="ltr" value={form.actual} onChange={(e) => setForm({ ...form, actual: e.target.value })} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>{t("products.avgSellPrice")} (JOD)</Label>
+            <Input type="number" step="0.001" dir="ltr" value={form.avgSell} onChange={(e) => setForm({ ...form, avgSell: e.target.value })} />
           </div>
           <div className="space-y-1.5 sm:col-span-2">
             <Label>{t("products.photos")}</Label>

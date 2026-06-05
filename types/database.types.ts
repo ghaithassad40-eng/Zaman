@@ -376,6 +376,9 @@ export type Database = {
           expected_selling_price: number | null
           historical_units_sold: number
           historical_revenue: number
+          opening_qty: number
+          actual_cost: number | null
+          avg_selling_price: number | null
           deleted_at: string | null
           description: string | null
           id: string
@@ -401,6 +404,11 @@ export type Database = {
           image_urls?: string[]
           default_selling_price?: number | null
           expected_selling_price?: number | null
+          opening_qty?: number
+          actual_cost?: number | null
+          avg_selling_price?: number | null
+          historical_units_sold?: number
+          historical_revenue?: number
           created_by?: string | null
         }
         Update: {
@@ -412,6 +420,11 @@ export type Database = {
           source_url?: string | null
           default_selling_price?: number | null
           expected_selling_price?: number | null
+          opening_qty?: number
+          actual_cost?: number | null
+          avg_selling_price?: number | null
+          historical_units_sold?: number
+          historical_revenue?: number
           image_urls?: string[]
           is_active?: boolean
           updated_by?: string | null

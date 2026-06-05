@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   ShoppingCart,
-  Boxes,
   Watch,
   PackageOpen,
   Package,
@@ -27,7 +26,6 @@ const NAV: { href: string; key: DictKey; icon: React.ElementType }[] = [
   { href: "/", key: "nav.dashboard", icon: LayoutDashboard },
   { href: "/sell", key: "nav.sell", icon: ShoppingCart },
   { href: "/products", key: "nav.products", icon: Watch },
-  { href: "/inventory", key: "nav.inventory", icon: Boxes },
   { href: "/purchases", key: "nav.purchases", icon: PackageOpen },
   { href: "/assets", key: "nav.assets", icon: Package },
   { href: "/sales", key: "nav.sales", icon: Receipt },
