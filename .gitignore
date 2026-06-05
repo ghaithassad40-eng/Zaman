@@ -32,6 +32,8 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# Publishable Supabase keys are public (client-side, RLS-protected) — commit for deploy
+!.env.production
 
 # vercel
 .vercel
@@ -39,3 +41,5 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+.vercel
