@@ -351,6 +351,7 @@ export type Database = {
           name_ar: string | null
           ownership_pct: number
           phone: string | null
+          role: string
           updated_at: string
           user_id: string | null
         }
