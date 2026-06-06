@@ -17,8 +17,8 @@ function registerFonts() {
     Font.register({
       family: "Amiri",
       fonts: [
-        { src: "https://cdn.jsdelivr.net/npm/@fontsource/amiri@5.0.13/files/amiri-arabic-400-normal.ttf" },
-        { src: "https://cdn.jsdelivr.net/npm/@fontsource/amiri@5.0.13/files/amiri-arabic-700-normal.ttf", fontWeight: 700 },
+        { src: "https://fonts.gstatic.com/s/amiri/v27/J7aRnpd8CGxBHpUgtUuU.ttf" },
+        { src: "https://fonts.gstatic.com/s/amiri/v27/J7afnpd8CGxBHpSp_Iqr.ttf", fontWeight: 700 },
       ],
     });
     fontsRegistered = true;
@@ -399,8 +399,9 @@ export async function downloadAuditorReport(args: AuditorReportArgs) {
   } catch (err) {
     const msg = (err as Error).message ?? "";
     if (msg.toLowerCase().includes("font") || msg.toLowerCase().includes("fetch")) {
-      fontsRegisterFailed = true;
       fontsRegistered = false;
+      fontsRegisterFailed = true;
+      try { Font.clear(); } catch { /* ignore */ }
       blob = await pdf(<AuditorReportDocument {...args} />).toBlob();
     } else {
       throw err;

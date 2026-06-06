@@ -10,7 +10,7 @@ import {
 import type { Tables } from "@/types/database.types";
 
 // Register an Arabic-capable font so the store name / labels render correctly.
-// If the CDN load fails (offline / blocked), we render with the default font.
+// If the CDN load fails (offline / 404 / blocked), we render with the default font.
 let fontsRegistered = false;
 let fontsRegisterFailed = false;
 function registerFonts() {
@@ -19,8 +19,8 @@ function registerFonts() {
     Font.register({
       family: "Amiri",
       fonts: [
-        { src: "https://cdn.jsdelivr.net/npm/@fontsource/amiri@5.0.13/files/amiri-arabic-400-normal.ttf" },
-        { src: "https://cdn.jsdelivr.net/npm/@fontsource/amiri@5.0.13/files/amiri-arabic-700-normal.ttf", fontWeight: 700 },
+        { src: "https://fonts.gstatic.com/s/amiri/v27/J7aRnpd8CGxBHpUgtUuU.ttf" },
+        { src: "https://fonts.gstatic.com/s/amiri/v27/J7afnpd8CGxBHpSp_Iqr.ttf", fontWeight: 700 },
       ],
     });
     fontsRegistered = true;
@@ -181,11 +181,14 @@ export async function downloadInvoicePdf(args: {
   try {
     blob = await pdf(<InvoiceDocument {...args} />).toBlob();
   } catch (err) {
-    // The Amiri CDN font may have failed to load — retry once with the
-    // built-in font so the user still gets a usable invoice.
+    // The CDN font may have failed (offline / 404 / blocked). Unregister so the
+    // Page falls back to the built-in font on the retry — keeps the invoice
+    // usable even when Arabic glyphs won't render.
     const msg = (err as Error).message ?? "";
     if (msg.toLowerCase().includes("font") || msg.toLowerCase().includes("fetch")) {
+      fontsRegistered = false;
       fontsRegisterFailed = true;
+      try { Font.clear(); } catch { /* ignore */ }
       blob = await pdf(<InvoiceDocument {...args} />).toBlob();
     } else {
       throw err;
