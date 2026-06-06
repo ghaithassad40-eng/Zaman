@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import Link from "next/link";
 import { Printer, TrendingUp, Coins, Percent, Landmark, CheckCircle2, XCircle, FileText, Loader2, Users, Truck, Lock, LockOpen } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/provider";
@@ -419,6 +420,24 @@ export default function ReportsPage() {
               </Button>
             </CardContent>
           </Card>
+
+          {/* Transactions report quick link */}
+          <Link href="/transactions" className="block">
+            <Card className="transition hover:border-primary/40 hover:shadow-sm">
+              <CardContent className="flex flex-wrap items-center justify-between gap-3 p-5">
+                <div className="flex items-start gap-3">
+                  <div className="flex size-11 items-center justify-center rounded-lg bg-sky-100 text-sky-700">
+                    <FileText className="size-5" />
+                  </div>
+                  <div>
+                    <div className="font-semibold">{t("txReport.title")}</div>
+                    <div className="text-sm text-muted-foreground">{t("txReport.subtitle")}</div>
+                  </div>
+                </div>
+                <Button variant="outline">{t("txReport.openReport")}</Button>
+              </CardContent>
+            </Card>
+          </Link>
 
           {/* Financial year close */}
           <Card>
