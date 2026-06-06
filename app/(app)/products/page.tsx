@@ -173,6 +173,11 @@ export default function ProductsPage() {
 
   async function importProducts(rows: Record<string, string>[]) {
     const { data: userData } = await supabase.auth.getUser();
+    // Date for the synthetic historical sales — pulled from settings so it can
+    // be configured per business (e.g. fiscal year start) rather than baked in.
+    const { data: cs } = await supabase.from("company_settings")
+      .select("opening_balance_date").limit(1).maybeSingle();
+    const histDate = cs?.opening_balance_date || new Date().toISOString().slice(0, 10);
     let created = 0;
     const errors: string[] = [];
     for (const r of rows) {
@@ -237,7 +242,7 @@ export default function ProductsPage() {
           const { data: saleNo } = await supabase.rpc("next_doc_no", { p_type: "sale" });
           const { data: s } = await supabase.from("sales").insert({
             sale_no: saleNo as string,
-            sale_date: "2026-01-01",
+            sale_date: histDate,
             customer_id: null,
             status: "completed",
             payment_status: "paid",
@@ -256,7 +261,7 @@ export default function ProductsPage() {
             const { data: acc } = await supabase.rpc("default_account_id");
             if (acc) {
               await supabase.from("cash_transactions").insert({
-                account_id: acc as string, txn_date: "2026-01-01", direction: "in",
+                account_id: acc as string, txn_date: histDate, direction: "in",
                 amount: subtotal, category: "sale", ref_table: "sales", ref_id: s.id,
                 note: `${saleNo} (historical)`, created_by: userData.user?.id,
               });

@@ -51,6 +51,7 @@ export default function SettingsPage() {
     auditor_name_ar: "",
     auditor_firm: "",
     auditor_license: "",
+    opening_balance_date: "",
   });
 
   useEffect(() => {
@@ -71,6 +72,7 @@ export default function SettingsPage() {
         auditor_name_ar: settings.auditor_name_ar ?? "",
         auditor_firm: settings.auditor_firm ?? "",
         auditor_license: settings.auditor_license ?? "",
+        opening_balance_date: settings.opening_balance_date ?? "",
       });
     }
   }, [settings]);
@@ -109,6 +111,7 @@ export default function SettingsPage() {
           auditor_name_ar: form.auditor_name_ar || null,
           auditor_firm: form.auditor_firm || null,
           auditor_license: form.auditor_license || null,
+          opening_balance_date: form.opening_balance_date || null,
         })
         .eq("id", settings.id);
       if (error) throw error;
@@ -154,6 +157,9 @@ export default function SettingsPage() {
               </Field>
               <Field label={t("settings.deliveryFee")}>
                 <Input type="number" step="0.001" dir="ltr" value={form.default_delivery_fee} onChange={(e) => setForm({ ...form, default_delivery_fee: e.target.value })} />
+              </Field>
+              <Field label={t("settings.openingBalanceDate")}>
+                <Input type="date" dir="ltr" value={form.opening_balance_date} onChange={(e) => setForm({ ...form, opening_balance_date: e.target.value })} placeholder="YYYY-MM-DD" />
               </Field>
               <Field label={t("common.phone")}>
                 <Input dir="ltr" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
@@ -258,7 +264,7 @@ export default function SettingsPage() {
               <Input readOnly dir="ltr" value={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/shein-import`} />
               <Button type="button" variant="outline" onClick={() => {
                 navigator.clipboard.writeText(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/shein-import`);
-                toast.success("Copied");
+                toast.success(t("common.copied"));
               }}>Copy</Button>
             </div>
           </div>
@@ -269,7 +275,7 @@ export default function SettingsPage() {
               <Button type="button" variant="outline" onClick={() => setShowKey((s) => !s)}>{showKey ? "Hide" : "Show"}</Button>
               <Button type="button" variant="outline" onClick={() => {
                 navigator.clipboard.writeText(settings?.import_api_key ?? "");
-                toast.success("Copied");
+                toast.success(t("common.copied"));
               }}>Copy</Button>
             </div>
             <p className="text-xs text-muted-foreground">Keep this key private — anyone with it can add purchases.</p>

@@ -6,7 +6,9 @@ const CFG_KEYS = ["endpoint", "apikey", "cur", "fx", "ship", "cust", "clr"];
 function loadConfig() {
   chrome.storage.local.get(["zamanCfg", "zamanCart"], (res) => {
     const cfg = res.zamanCfg || {};
-    $("endpoint").value = cfg.endpoint || "https://gbdktacfxleqgfxrsnfo.supabase.co/functions/v1/shein-import";
+    // No hard-coded tenant URL: the user pastes their Supabase Functions endpoint
+    // from Settings → "Shein cart import" the first time they use the extension.
+    $("endpoint").value = cfg.endpoint || "";
     $("apikey").value = cfg.apikey || "";
     $("cur").value = cfg.cur || "USD";
     $("fx").value = cfg.fx || "0.709";

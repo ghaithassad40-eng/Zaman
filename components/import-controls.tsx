@@ -31,7 +31,7 @@ export function ImportControls({
     try {
       const rows = await parseUpload(file, cols);
       if (rows.length === 0) {
-        toast.error("No data rows found in the file.");
+        toast.error(t("common.noDataInFile"));
         return;
       }
       const res = await onImport(rows);

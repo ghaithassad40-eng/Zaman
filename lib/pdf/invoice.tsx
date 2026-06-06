@@ -79,8 +79,8 @@ export function InvoiceDocument({
       <Page size="A4" style={pageStyle}>
         <View style={styles.header}>
           <View>
-            <Text style={styles.brand}>ZAMAN WATCH</Text>
-            <Text style={styles.brandSub}>زمن للساعات</Text>
+            <Text style={styles.brand}>{(company?.name || "Zaman Watch").toUpperCase()}</Text>
+            <Text style={styles.brandSub}>{company?.name_ar || "زمن للساعات"}</Text>
             {company?.tax_number ? (
               <Text style={[styles.muted, { marginTop: 4, fontSize: 9 }]}>
                 Tax No. / الرقم الضريبي: {company.tax_number}
@@ -163,7 +163,7 @@ export function InvoiceDocument({
         </View>
 
         <Text style={styles.footer}>
-          Thank you for shopping with Zaman Watch · شكراً لتسوقكم من زمن للساعات
+          {`Thank you for shopping with ${company?.name || "Zaman Watch"} · شكراً لتسوقكم من ${company?.name_ar || "زمن للساعات"}`}
         </Text>
       </Page>
     </Document>

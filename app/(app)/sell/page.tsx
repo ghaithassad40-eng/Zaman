@@ -294,7 +294,7 @@ export default function SellPage() {
                 <div className="space-y-1 border-t pt-3 text-sm">
                   <Row label={t("common.subtotal")} value={formatJOD(subtotal, locale)} />
                   {disc > 0 && <Row label={t("common.discount")} value={`- ${formatJOD(disc, locale)}`} />}
-                  <Row label={t("sell.gst")} value={formatJOD(gst, locale)} />
+                  <Row label={`${t("sell.gst")} (${gstRate}%)`} value={formatJOD(gst, locale)} />
                   {billedDelivery > 0 && <Row label={t("sell.deliveryBilled")} value={formatJOD(billedDelivery, locale)} />}
                   <div className="flex items-center justify-between border-t pt-2 text-base font-bold">
                     <span>{t("common.total")}</span><span className="text-primary">{formatJOD(total, locale)}</span>

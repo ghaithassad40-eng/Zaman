@@ -81,13 +81,13 @@ export default function SalesPage() {
         // Invoice row was created — surface a focused message so user knows
         // the books recorded the invoice even if the PDF render failed.
         const msg = (renderErr as Error).message ?? "PDF render failed";
-        toast.error(`Invoice ${bundle.invoice.invoice_no} saved, but PDF failed: ${msg}`);
+        toast.error(`${t("sales.invoiceSavedPdfFailed")} · ${bundle.invoice.invoice_no} — ${msg}`);
         return;
       }
       toast.success(bundle.invoice.invoice_no);
     } catch (e) {
       const err = e as { message?: string; code?: string; details?: string };
-      toast.error(err.details || err.message || "Failed to issue invoice");
+      toast.error(err.details || err.message || t("sales.invoiceFailed"));
     } finally {
       setBusy(null);
     }
@@ -429,6 +429,7 @@ function EditSaleDialog({ sale, onClose }: { sale: SaleRow | null; onClose: () =
   const [notes, setNotes] = useState<string>("");
   const [items, setItems] = useState<SaleItemEdit[]>([]);
   const [loadedId, setLoadedId] = useState<string | null>(null);
+  const [gstRate, setGstRate] = useState<number>(0);
 
   // Load full sale details when opened.
   useEffect(() => {
@@ -447,13 +448,13 @@ function EditSaleDialog({ sale, onClose }: { sale: SaleRow | null; onClose: () =
       setDeliveryBilled(String(full.delivery_billed ?? 0));
       setDeliveryFee(String(full.delivery_fee ?? 0));
       setNotes(full.notes ?? "");
+      setGstRate(Number(full.gst_rate ?? 0));
       setItems((full.sale_items ?? []).map((i) => ({
         id: i.id, description: i.description ?? "", qty: Number(i.qty), unit_price: Number(i.unit_price),
       })));
     })();
   }, [sale, supabase, loadedId]);
 
-  const gstRate = 16;
   const subtotal = round3(items.reduce((s, i) => s + i.qty * i.unit_price, 0));
   const disc = round3(Number(discount) || 0);
   const taxable = Math.max(0, round3(subtotal - disc));
@@ -502,7 +503,7 @@ function EditSaleDialog({ sale, onClose }: { sale: SaleRow | null; onClose: () =
       qc.invalidateQueries();
       onClose();
     },
-    onError: (e: { message?: string; details?: string }) => toast.error(e.details || e.message || "Save failed"),
+    onError: (e: { message?: string; details?: string }) => toast.error(e.details || e.message || t("common.saveFailed")),
   });
 
   function updateItem(id: string, patch: Partial<SaleItemEdit>) {
@@ -569,7 +570,7 @@ function EditSaleDialog({ sale, onClose }: { sale: SaleRow | null; onClose: () =
 
             <div className="space-y-1 rounded-md bg-muted/50 p-3 text-sm">
               <div className="flex justify-between"><span className="text-muted-foreground">{t("common.subtotal")}</span><span>{formatJOD(subtotal, locale)}</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">{t("sell.gst")}</span><span>{formatJOD(gst, locale)}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">{t("sell.gst")} ({gstRate}%)</span><span>{formatJOD(gst, locale)}</span></div>
               <div className="flex justify-between border-t pt-1 font-bold"><span>{t("common.total")}</span><span className="text-primary">{formatJOD(total, locale)}</span></div>
             </div>
 

@@ -189,6 +189,7 @@ export type Database = {
           created_at: string
           currency: string
           default_delivery_fee: number
+          opening_balance_date: string | null
           email: string | null
           gst_rate: number
           id: string
@@ -215,6 +216,7 @@ export type Database = {
           created_at?: string
           currency?: string
           default_delivery_fee?: number
+          opening_balance_date?: string | null
           email?: string | null
           gst_rate?: number
           id?: string
@@ -241,6 +243,7 @@ export type Database = {
           created_at?: string
           currency?: string
           default_delivery_fee?: number
+          opening_balance_date?: string | null
           email?: string | null
           gst_rate?: number
           id?: string
