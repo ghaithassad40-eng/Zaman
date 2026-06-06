@@ -93,15 +93,42 @@ function useProducts() {
   return useQuery({
     queryKey: ["products"],
     queryFn: async (): Promise<ProductRow[]> => {
-      const { data, error } = await supabase
-        .from("products")
-        .select(
-          "id, sku, name, name_ar, color, brand, model, feature, gender, description, source_url, image_urls, default_selling_price, expected_selling_price, opening_qty, actual_cost, avg_selling_price, historical_units_sold, is_active, inventory(qty_on_hand, avg_unit_cost)",
-        )
-        .is("deleted_at", null)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return (data ?? []) as unknown as ProductRow[];
+      const [prodRes, salesAggRes] = await Promise.all([
+        supabase
+          .from("products")
+          .select(
+            "id, sku, name, name_ar, color, brand, model, feature, gender, description, source_url, image_urls, default_selling_price, expected_selling_price, opening_qty, actual_cost, avg_selling_price, historical_units_sold, is_active, inventory(qty_on_hand, avg_unit_cost)",
+          )
+          .is("deleted_at", null)
+          .order("created_at", { ascending: false }),
+        // Sales aggregates per product — source of truth for "Sold Qty" and "Avg Selling Price".
+        supabase
+          .from("sale_items")
+          .select("product_id, qty, line_total, sales!inner(status,deleted_at)")
+          .is("sales.deleted_at", null)
+          .not("sales.status", "in", "(cancelled,returned)"),
+      ]);
+      if (prodRes.error) throw prodRes.error;
+
+      // Aggregate per product.
+      const agg = new Map<string, { qty: number; revenue: number }>();
+      for (const r of (salesAggRes.data ?? []) as { product_id: string | null; qty: number; line_total: number }[]) {
+        if (!r.product_id) continue;
+        const cur = agg.get(r.product_id) ?? { qty: 0, revenue: 0 };
+        cur.qty += Number(r.qty);
+        cur.revenue += Number(r.line_total);
+        agg.set(r.product_id, cur);
+      }
+
+      const rows = (prodRes.data ?? []) as unknown as ProductRow[];
+      for (const p of rows) {
+        const a = agg.get(p.id);
+        p.historical_units_sold = a?.qty ?? 0; // "Sold Qty" — real sales, not the stale stored field
+        if (a && a.qty > 0) {
+          p.avg_selling_price = round3(a.revenue / a.qty);
+        }
+      }
+      return rows;
     },
   });
 }
@@ -186,14 +213,21 @@ export default function ProductsPage() {
         .select("id")
         .single();
       if (error || !prod) { errors.push(`${r.sku}: ${error?.message ?? "failed"}`); continue; }
-      const { error: invErr } = await supabase
-        .from("inventory")
-        .upsert({ product_id: prod.id, qty_on_hand: Math.max(0, opening - sold), avg_unit_cost: actualCost }, { onConflict: "product_id" });
-      if (invErr) { errors.push(`${r.sku}: ${invErr.message}`); continue; }
 
-      // Convert historical sold qty into a real sale dated 2026-01-01 so it
-      // flows through Revenue, Profit, P&L, and the auditor's report.
-      // Also posts a cash inflow so the balance sheet reflects the money.
+      // Idempotent re-import: wipe any prior historical sales for this product so
+      // re-uploading the same template doesn't duplicate revenue/cash.
+      const { data: priorHist } = await supabase
+        .from("sales").select("id")
+        .like("notes", `Historical (imported) — ${r.sku}%`);
+      if (priorHist && priorHist.length > 0) {
+        const ids = priorHist.map((x) => x.id);
+        await supabase.from("cash_transactions").delete().eq("ref_table", "sales").in("ref_id", ids);
+        await supabase.from("sale_items").delete().in("sale_id", ids);
+        await supabase.from("sales").delete().in("id", ids);
+      }
+
+      // Convert historical sold qty into a real sale dated 2026-01-01 so it flows
+      // through Revenue, Profit, P&L, and the auditor's report.
       if (sold > 0) {
         const unitPrice = avgSell || sellingPrice || expectedPrice || 0;
         if (unitPrice > 0) {
@@ -219,24 +253,30 @@ export default function ProductsPage() {
               sale_id: s.id, product_id: prod.id, description: derivedName,
               qty: sold, unit_price: unitPrice, line_total: subtotal, unit_cost: actualCost,
             });
-            // Post the cash inflow to the default account so balance sheet shows the money.
             const { data: acc } = await supabase.rpc("default_account_id");
             if (acc) {
               await supabase.from("cash_transactions").insert({
-                account_id: acc as string,
-                txn_date: "2026-01-01",
-                direction: "in",
-                amount: subtotal,
-                category: "sale",
-                ref_table: "sales",
-                ref_id: s.id,
-                note: `${saleNo} (historical)`,
-                created_by: userData.user?.id,
+                account_id: acc as string, txn_date: "2026-01-01", direction: "in",
+                amount: subtotal, category: "sale", ref_table: "sales", ref_id: s.id,
+                note: `${saleNo} (historical)`, created_by: userData.user?.id,
               });
             }
           }
         }
       }
+
+      // Inventory: qty_on_hand = opening_qty − all non-cancelled sales for this product.
+      // Read live so it reflects both the historical sale we just (re)created and any
+      // real in-system sales since.
+      const { data: salesAgg } = await supabase
+        .from("sale_items").select("qty, sales!inner(status,deleted_at)")
+        .eq("product_id", prod.id).is("sales.deleted_at", null).not("sales.status", "in", "(cancelled,returned)");
+      const totalSold = (salesAgg ?? []).reduce((s, x) => s + Number(x.qty), 0);
+      const finalQty = Math.max(0, opening - totalSold);
+      await supabase.from("inventory").upsert(
+        { product_id: prod.id, qty_on_hand: finalQty, avg_unit_cost: actualCost },
+        { onConflict: "product_id" },
+      );
       created++;
     }
     qc.invalidateQueries({ queryKey: ["products"] });
