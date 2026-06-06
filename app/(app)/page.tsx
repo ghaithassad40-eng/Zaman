@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import {
   TrendingUp, ShoppingBag, Boxes, Coins, Landmark, Megaphone, Target, Plus, Loader2,
   Package, AlertTriangle, Receipt, Truck, ChevronRight, Wallet, Scale, ArrowUpRight,
+  Archive,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/provider";
@@ -38,7 +39,7 @@ function useDashboard() {
       const today = new Date().toISOString().slice(0, 10);
       const since = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
 
-      const [sales, inventory, recent, marketing, toPack, fin] = await Promise.all([
+      const [sales, inventory, recent, marketing, toPack, fin, hist] = await Promise.all([
         supabase.from("sales").select("total, gross_profit").gte("sale_date", since)
           .neq("status", "cancelled").neq("status", "returned").is("deleted_at", null),
         supabase.from("inventory").select("qty_on_hand, avg_unit_cost, products(expected_selling_price, default_selling_price)"),
@@ -47,6 +48,8 @@ function useDashboard() {
         supabase.from("cash_transactions").select("amount").eq("direction", "out").in("category", ["marketing", "ads"]).gte("txn_date", since),
         supabase.from("sales").select("id", { count: "exact", head: true }).eq("status", "confirmed").is("deleted_at", null),
         supabase.rpc("get_financials", { p_from: "2000-01-01", p_to: today }),
+        // Historical (imported) totals from the product upload: pre-system sales.
+        supabase.from("products").select("historical_units_sold, historical_revenue, actual_cost").is("deleted_at", null),
       ]);
 
       const revenue = (sales.data ?? []).reduce((s, r) => s + Number(r.total), 0);
@@ -62,6 +65,14 @@ function useDashboard() {
       const roas = marketing30 > 0 ? revenue / marketing30 : null;
       const f = (fin.data ?? null) as Fin | null;
 
+      // Historical (imported) totals: pre-system sales the user entered via the products template.
+      const hRows = (hist.data ?? []) as { historical_units_sold: number; historical_revenue: number; actual_cost: number | null }[];
+      const histUnits = hRows.reduce((s, r) => s + Number(r.historical_units_sold ?? 0), 0);
+      const histRevenue = hRows.reduce((s, r) => s + Number(r.historical_revenue ?? 0), 0);
+      const histCost = hRows.reduce((s, r) => s + Number(r.historical_units_sold ?? 0) * Number(r.actual_cost ?? 0), 0);
+      const histProfit = histRevenue - histCost;
+      const hasHist = histUnits > 0 || histRevenue > 0;
+
       return {
         revenue, profit, orders, expectedRevenue, lowStock, marketing30, roas,
         toPack: toPack.count ?? 0,
@@ -72,6 +83,7 @@ function useDashboard() {
         vendorRecv: f?.balance_sheet.courier_receivable ?? 0,
         equity: f?.balance_sheet.total_equity ?? 0,
         recent: recent.data ?? [],
+        hasHist, histUnits, histRevenue, histProfit,
       };
     },
   });
@@ -187,6 +199,22 @@ export default function DashboardPage() {
         <Kpi icon={Megaphone} label={t("dashboard.marketing")} value={j(data?.marketing30)} sub={t("dashboard.last30short")} tone="amber" loading={isLoading} />
         <Kpi icon={Landmark} label={t("reports.totalEquity")} value={j(data?.equity)} tone="slate" loading={isLoading} />
       </div>
+
+      {/* Historical (imported) */}
+      {data?.hasHist && (
+        <>
+          <div className="mb-2 mt-6 flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+            <Archive className="size-4" /> {t("dashboard.historical")}
+            <span className="text-xs font-normal text-muted-foreground/80">· {t("dashboard.historicalHint")}</span>
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <Kpi icon={TrendingUp} label={t("dashboard.histRevenue")} value={j(data.histRevenue)} sub={t("dashboard.imported")} tone="primary" loading={isLoading} />
+            <Kpi icon={Coins} label={t("dashboard.histProfit")} value={j(data.histProfit)} sub={t("dashboard.imported")} tone="green" loading={isLoading} />
+            <Kpi icon={ShoppingBag} label={t("dashboard.histUnits")} value={data.histUnits.toString()} sub={t("dashboard.imported")} tone="blue" loading={isLoading} />
+            <Kpi icon={Boxes} label={t("dashboard.histAvgPrice")} value={data.histUnits > 0 ? formatJOD(round3(data.histRevenue / data.histUnits), locale) : "—"} sub={t("dashboard.imported")} tone="amber" loading={isLoading} />
+          </div>
+        </>
+      )}
 
       {/* Recent sales */}
       <Card className="mt-6">
