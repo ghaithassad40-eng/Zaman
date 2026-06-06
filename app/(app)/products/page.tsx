@@ -135,6 +135,8 @@ export default function ProductsPage() {
       const sold = Math.max(0, Math.round(numOr(r.sold_qty)));
       const actualCost = numOr(r.actual_cost);
       const avgSell = numOr(r.avg_selling_price);
+      const sellingPrice = r.selling_price ? numOr(r.selling_price) : null;
+      const expectedPrice = r.expected_price ? numOr(r.expected_price) : null;
       const { data: prod, error } = await supabase
         .from("products")
         .upsert(
@@ -151,10 +153,10 @@ export default function ProductsPage() {
             opening_qty: opening,
             actual_cost: r.actual_cost ? actualCost : null,
             avg_selling_price: r.avg_selling_price ? avgSell : null,
-            historical_units_sold: sold,
-            historical_revenue: round3(avgSell * sold),
-            default_selling_price: r.selling_price ? numOr(r.selling_price) : null,
-            expected_selling_price: r.expected_price ? numOr(r.expected_price) : null,
+            historical_units_sold: 0,
+            historical_revenue: 0,
+            default_selling_price: sellingPrice,
+            expected_selling_price: expectedPrice,
             created_by: userData.user?.id,
           },
           { onConflict: "sku,color" },
@@ -166,6 +168,37 @@ export default function ProductsPage() {
         .from("inventory")
         .upsert({ product_id: prod.id, qty_on_hand: Math.max(0, opening - sold), avg_unit_cost: actualCost }, { onConflict: "product_id" });
       if (invErr) { errors.push(`${r.sku}: ${invErr.message}`); continue; }
+
+      // Convert historical sold qty into a real sale dated 2026-01-01 so it
+      // flows through Revenue, Profit, and reports like a normal sale.
+      if (sold > 0) {
+        const unitPrice = avgSell || sellingPrice || expectedPrice || 0;
+        if (unitPrice > 0) {
+          const subtotal = round3(sold * unitPrice);
+          const totalCost = round3(sold * actualCost);
+          const gp = round3(subtotal - totalCost);
+          const { data: saleNo } = await supabase.rpc("next_doc_no", { p_type: "sale" });
+          await supabase.from("sales").insert({
+            sale_no: saleNo as string,
+            sale_date: "2026-01-01",
+            customer_id: null,
+            status: "completed",
+            payment_status: "paid",
+            subtotal, discount: 0, delivery_fee: 0, delivery_billed: 0,
+            gst_rate: 0, gst_amount: 0, total: subtotal,
+            total_cost: totalCost, packaging_cost: 0, gross_profit: gp,
+            fulfillment_stage: 6,
+            notes: `Historical (imported) — ${r.sku}`,
+            created_by: userData.user?.id,
+          }).select("id").single().then(async ({ data: s }) => {
+            if (!s) return;
+            await supabase.from("sale_items").insert({
+              sale_id: s.id, product_id: prod.id, description: derivedName,
+              qty: sold, unit_price: unitPrice, line_total: subtotal, unit_cost: actualCost,
+            });
+          });
+        }
+      }
       created++;
     }
     qc.invalidateQueries({ queryKey: ["products"] });
