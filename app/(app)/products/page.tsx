@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -609,10 +609,12 @@ function ProductDialog({
   });
   const [files, setFiles] = useState<File[]>([]);
   const [existingImages, setExistingImages] = useState<string[]>([]);
-  // Sync form whenever the dialog opens for a (different) product.
-  const [loadedFor, setLoadedFor] = useState<string | null>(null);
-  if (open && (product?.id ?? "new") !== loadedFor) {
-    setLoadedFor(product?.id ?? "new");
+
+  // Sync form whenever the dialog opens for a (different) product. useEffect is
+  // more reliable than a render-time conditional setState and handles re-opens
+  // of the same product after a refetch correctly.
+  useEffect(() => {
+    if (!open) return;
     setForm({
       sku: product?.sku ?? "",
       name: product?.name ?? "",
@@ -628,13 +630,14 @@ function ProductDialog({
       expected: product?.expected_selling_price != null ? String(product.expected_selling_price) : "",
       opening: product?.opening_qty != null ? String(product.opening_qty) : "0",
       actual: product?.actual_cost != null ? String(product.actual_cost) : "",
-      sold: product?.historical_units_sold != null ? String(product.historical_units_sold) : "0",
-      avgSell: product?.avg_selling_price != null ? String(product.avg_selling_price) : "",
+      sold: "0",
+      avgSell: "",
       is_active: product?.is_active ?? true,
     });
     setFiles([]);
     setExistingImages(product?.image_urls ?? []);
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, product?.id]);
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -650,19 +653,22 @@ function ProductDialog({
       const { data: userData } = await supabase.auth.getUser();
 
       const opening = Math.max(0, Math.round(numOr(form.opening)));
-      const sold = Math.max(0, Math.round(numOr(form.sold)));
       const actualCost = form.actual ? numOr(form.actual) : null;
-      const avgSell = form.avgSell ? numOr(form.avgSell) : null;
 
-      const derivedName = buildProductName({
-        brand: form.brand, model: form.model, color: form.color, feature: form.feature, gender: form.gender, name: form.name,
+      // Use what the user typed in the Name input. If they didn't type anything,
+      // build it from the structured fields. Final fallback: keep the original
+      // (so editing a legacy product with no Model/Feature/Gender doesn't truncate).
+      const typed = form.name.trim();
+      const built = buildProductName({
+        brand: form.brand, model: form.model, color: form.color, feature: form.feature, gender: form.gender,
       });
-      if (!derivedName) throw new Error("Enter at least the Brand or Model to build the product name.");
+      const finalName = typed || built || product?.name?.trim() || "";
+      if (!finalName) throw new Error("Enter a product name (or fill brand/model/color/feature/gender).");
 
       if (isEdit && product) {
         const patch: TablesUpdate<"products"> = {
           sku: form.sku.trim(),
-          name: derivedName,
+          name: finalName,
           name_ar: form.name_ar.trim() || null,
           color: form.color.trim(),
           brand: form.brand.trim() || null,
@@ -676,9 +682,6 @@ function ProductDialog({
           expected_selling_price: form.expected ? Number(form.expected) : null,
           opening_qty: opening,
           actual_cost: actualCost,
-          avg_selling_price: avgSell,
-          historical_units_sold: sold,
-          historical_revenue: round3((avgSell ?? 0) * sold),
           is_active: form.is_active,
           updated_by: userData.user?.id,
         };
@@ -692,7 +695,7 @@ function ProductDialog({
           .from("products")
           .insert({
             sku: form.sku.trim(),
-            name: derivedName,
+            name: finalName,
             name_ar: form.name_ar.trim() || null,
             color: form.color.trim(),
             brand: form.brand.trim() || null,
@@ -707,9 +710,6 @@ function ProductDialog({
             expected_selling_price: form.expected ? Number(form.expected) : null,
             opening_qty: opening,
             actual_cost: actualCost,
-            avg_selling_price: avgSell,
-            historical_units_sold: sold,
-            historical_revenue: round3((avgSell ?? 0) * sold),
             created_by: userData.user?.id,
           })
           .select("id")
@@ -717,7 +717,7 @@ function ProductDialog({
         if (error) throw error;
         await supabase.from("inventory").insert({
           product_id: created.id,
-          qty_on_hand: Math.max(0, opening - sold),
+          qty_on_hand: opening,
           avg_unit_cost: actualCost ?? 0,
         });
       }
@@ -788,10 +788,26 @@ function ProductDialog({
             </Select>
           </div>
           <div className="space-y-1.5 sm:col-span-2">
-            <Label>{t("products.namePreview")}</Label>
-            <div className="rounded-md border bg-muted/50 px-3 py-2 text-sm font-medium">
-              {buildProductName(form) || <span className="text-muted-foreground">{t("products.namePreviewHint")}</span>}
+            <div className="flex items-center justify-between">
+              <Label>{t("common.name")} *</Label>
+              <button
+                type="button"
+                className="text-xs text-primary hover:underline disabled:opacity-50"
+                disabled={!buildProductName(form)}
+                onClick={() => {
+                  const built = buildProductName(form);
+                  if (built) setForm((p) => ({ ...p, name: built }));
+                }}
+              >
+                {t("products.autoBuild")}
+              </button>
             </div>
+            <Input
+              required
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              placeholder={buildProductName(form) || t("products.namePreviewHint")}
+            />
           </div>
           <div className="space-y-1.5 sm:col-span-2">
             <Label>{t("common.name")} (ع)</Label>
@@ -823,16 +839,8 @@ function ProductDialog({
             <Input type="number" dir="ltr" value={form.opening} onChange={(e) => setForm({ ...form, opening: e.target.value })} />
           </div>
           <div className="space-y-1.5">
-            <Label>{t("products.soldQty")}</Label>
-            <Input type="number" dir="ltr" value={form.sold} onChange={(e) => setForm({ ...form, sold: e.target.value })} />
-          </div>
-          <div className="space-y-1.5">
             <Label>{t("products.actualCost")} (JOD)</Label>
             <Input type="number" step="0.001" dir="ltr" value={form.actual} onChange={(e) => setForm({ ...form, actual: e.target.value })} />
-          </div>
-          <div className="space-y-1.5">
-            <Label>{t("products.avgSellPrice")} (JOD)</Label>
-            <Input type="number" step="0.001" dir="ltr" value={form.avgSell} onChange={(e) => setForm({ ...form, avgSell: e.target.value })} />
           </div>
           <div className="space-y-1.5 sm:col-span-2">
             <Label>{t("products.photos")}</Label>
