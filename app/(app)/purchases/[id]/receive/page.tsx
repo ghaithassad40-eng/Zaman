@@ -119,11 +119,12 @@ export default function ReceiveWizard() {
                   {t("wf.markAll")}
                 </label>
                 {items.map((it) => (
-                  <label key={it.id} className="flex items-center justify-between gap-2 rounded-md border p-3 text-sm">
+                  <label key={it.id} className={"flex items-center justify-between gap-2 rounded-md border p-3 text-sm " + (it.is_asset ? "border-primary/40 bg-primary/5" : "")}>
                     <span className="flex items-center gap-3">
                       <input type="checkbox" className="size-4 accent-[var(--primary)]" checked={it.received} onChange={(e) => patch(it.id, { received: e.target.checked })} />
                       <span className="font-medium">{nm(it)}</span>
                       <span className="text-muted-foreground">×{it.qty}</span>
+                      {it.is_asset && <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-medium text-primary">{t("purchases.asset")}</span>}
                     </span>
                     <span className="text-muted-foreground">{t("purchases.landedUnit")}: {num3(it.landed_unit_cost)}</span>
                   </label>
@@ -131,17 +132,24 @@ export default function ReceiveWizard() {
               </div>
             )}
 
-            {/* Step 1 — Quality control */}
+            {/* Step 1 — Quality control (skipped for assets) */}
             {step === 1 && (
               <div className="space-y-3">
                 {items.map((it) => (
-                  <div key={it.id} className="rounded-md border p-3">
-                    <div className="mb-2 text-sm font-medium">{nm(it)} <span className="text-muted-foreground">×{it.qty}</span></div>
-                    <div className="flex flex-wrap gap-4 text-sm">
-                      <Check label={t("wf.qcQuality")} checked={it.qc_quality} onChange={(v) => patch(it.id, { qc_quality: v })} />
-                      <Check label={t("wf.qcWorking")} checked={it.qc_working} onChange={(v) => patch(it.id, { qc_working: v })} />
-                      <Check label={t("wf.qcRepackage")} checked={it.qc_repackage} onChange={(v) => patch(it.id, { qc_repackage: v })} />
+                  <div key={it.id} className={"rounded-md border p-3 " + (it.is_asset ? "border-primary/40 bg-primary/5" : "")}>
+                    <div className="mb-2 text-sm font-medium">
+                      {nm(it)} <span className="text-muted-foreground">×{it.qty}</span>
+                      {it.is_asset && <span className="ms-2 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-medium text-primary">{t("purchases.asset")}</span>}
                     </div>
+                    {it.is_asset ? (
+                      <p className="text-xs text-muted-foreground">{t("purchases.assetQcSkip")}</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-4 text-sm">
+                        <Check label={t("wf.qcQuality")} checked={it.qc_quality} onChange={(v) => patch(it.id, { qc_quality: v })} />
+                        <Check label={t("wf.qcWorking")} checked={it.qc_working} onChange={(v) => patch(it.id, { qc_working: v })} />
+                        <Check label={t("wf.qcRepackage")} checked={it.qc_repackage} onChange={(v) => patch(it.id, { qc_repackage: v })} />
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -151,8 +159,11 @@ export default function ReceiveWizard() {
             {step === 2 && (
               <div className="space-y-3">
                 {items.map((it) => (
-                  <label key={it.id} className="flex items-center justify-between gap-2 rounded-md border p-3 text-sm">
-                    <span className="font-medium">{nm(it)} <span className="text-muted-foreground">×{it.qty}</span></span>
+                  <label key={it.id} className={"flex items-center justify-between gap-2 rounded-md border p-3 text-sm " + (it.is_asset ? "border-primary/40 bg-primary/5" : "")}>
+                    <span className="font-medium">
+                      {nm(it)} <span className="text-muted-foreground">×{it.qty}</span>
+                      {it.is_asset && <span className="ms-2 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-medium text-primary">{t("purchases.asset")}</span>}
+                    </span>
                     <Check label={t("wf.toReturn")} checked={it.to_return} onChange={(v) => patch(it.id, { to_return: v })} danger />
                   </label>
                 ))}

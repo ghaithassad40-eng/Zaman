@@ -820,9 +820,13 @@ export type Database = {
       purchase_items: {
         Row: {
           allocated_overhead: number
+          asset_name: string | null
           created_at: string
+          depreciation_start_date: string | null
+          depreciation_years: number | null
           id: string
           image_url: string | null
+          is_asset: boolean
           landed_unit_cost: number
           name: string | null
           product_id: string | null
@@ -832,6 +836,7 @@ export type Database = {
           qc_working: boolean
           qty: number
           received: boolean
+          salvage_value: number
           sku: string | null
           to_return: boolean
           unit_cost_jod: number
@@ -839,9 +844,13 @@ export type Database = {
         }
         Insert: {
           allocated_overhead?: number
+          asset_name?: string | null
           created_at?: string
+          depreciation_start_date?: string | null
+          depreciation_years?: number | null
           id?: string
           image_url?: string | null
+          is_asset?: boolean
           landed_unit_cost?: number
           name?: string | null
           product_id?: string | null
@@ -851,6 +860,7 @@ export type Database = {
           qc_working?: boolean
           qty?: number
           received?: boolean
+          salvage_value?: number
           sku?: string | null
           to_return?: boolean
           unit_cost_jod?: number
@@ -858,9 +868,13 @@ export type Database = {
         }
         Update: {
           allocated_overhead?: number
+          asset_name?: string | null
           created_at?: string
+          depreciation_start_date?: string | null
+          depreciation_years?: number | null
           id?: string
           image_url?: string | null
+          is_asset?: boolean
           landed_unit_cost?: number
           name?: string | null
           product_id?: string | null
@@ -870,6 +884,7 @@ export type Database = {
           qc_working?: boolean
           qty?: number
           received?: boolean
+          salvage_value?: number
           sku?: string | null
           to_return?: boolean
           unit_cost_jod?: number
