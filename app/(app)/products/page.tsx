@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Image from "next/image";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Loader2, Watch, Upload, Search, Pencil, X, SlidersHorizontal } from "lucide-react";
+import { Plus, Loader2, Watch, Upload, Search, Pencil, X, SlidersHorizontal, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/provider";
 import { PageHeader } from "@/components/page-header";
@@ -115,6 +115,28 @@ export default function ProductsPage() {
   const [adjust, setAdjust] = useState<ProductRow | null>(null);
   const [search, setSearch] = useState("");
   const [colorFilter, setColorFilter] = useState("");
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  async function remove(p: ProductRow) {
+    const stock = p.inventory?.qty_on_hand ?? 0;
+    if (stock > 0) {
+      toast.error(t("products.hasStock"));
+      return;
+    }
+    if (!window.confirm(`${t("products.deleteConfirm")}\n\n${p.name}`)) return;
+    setBusyId(p.id);
+    try {
+      const { error } = await supabase.from("products").update({ deleted_at: new Date().toISOString() }).eq("id", p.id);
+      if (error) throw error;
+      toast.success(t("products.deleted"));
+      qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["sellable_products"] });
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   const colors = useMemo(() => {
     const set = new Set<string>();
@@ -378,6 +400,16 @@ export default function ProductsPage() {
                           title={t("inventory.adjust")}
                         >
                           <SlidersHorizontal className="size-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-destructive hover:text-destructive"
+                          disabled={busyId === p.id}
+                          onClick={(e) => { e.stopPropagation(); remove(p); }}
+                          title={t("common.delete")}
+                        >
+                          {busyId === p.id ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
                         </Button>
                       </div>
                     </TableCell>
