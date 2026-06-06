@@ -1,17 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import Link from "next/link";
-import { FileText, Loader2, Receipt, Undo2, Plus, ListChecks, CheckCircle2, Truck } from "lucide-react";
+import { FileText, Loader2, Receipt, Undo2, Plus, ListChecks, CheckCircle2, Truck, ArrowLeft, Pencil, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/provider";
+import { useCustomers } from "@/lib/hooks";
 import { ensureInvoiceForSale } from "@/lib/invoice-actions";
 import { downloadInvoicePdf } from "@/lib/pdf/invoice";
 import { PageHeader } from "@/components/page-header";
 import { Stepper } from "@/components/stepper";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -25,7 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatJOD } from "@/lib/utils";
+import { formatJOD, round3 } from "@/lib/utils";
 
 type SaleRow = {
   id: string;
@@ -47,6 +50,7 @@ export default function SalesPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [fulSale, setFulSale] = useState<SaleRow | null>(null);
   const [retSale, setRetSale] = useState<SaleRow | null>(null);
+  const [editSale, setEditSale] = useState<SaleRow | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["sales-list"],
@@ -130,9 +134,14 @@ export default function SalesPage() {
                     <TableCell className="text-end">
                       <div className="flex flex-wrap justify-end gap-2">
                         {s.status !== "returned" && s.status !== "cancelled" && (
-                          <Button size="sm" variant="outline" onClick={() => setFulSale(s)}>
-                            <ListChecks className="size-4" /> {t("wf.fulfillment")} {s.fulfillment_stage}/6
-                          </Button>
+                          <>
+                            <Button size="sm" variant="outline" onClick={() => setFulSale(s)}>
+                              <ListChecks className="size-4" /> {t("wf.fulfillment")} {s.fulfillment_stage}/6
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => setEditSale(s)} title={t("common.edit")}>
+                              <Pencil className="size-4" />
+                            </Button>
+                          </>
                         )}
                         <Button
                           size="sm"
@@ -174,6 +183,7 @@ export default function SalesPage() {
 
       <FulfillmentDialog sale={fulSale} onClose={() => setFulSale(null)} />
       <ReturnDialog sale={retSale} onClose={() => setRetSale(null)} />
+      <EditSaleDialog sale={editSale} onClose={() => setEditSale(null)} />
     </>
   );
 }
@@ -212,6 +222,20 @@ function FulfillmentDialog({ sale, onClose }: { sale: SaleRow | null; onClose: (
       const next = Math.min(6, stage + 1);
       const patch: { fulfillment_stage: number; status?: "completed" } = { fulfillment_stage: next };
       if (next >= 6) patch.status = "completed";
+      const { error } = await supabase.from("sales").update(patch).eq("id", sale.id);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["sales-list"] }); onClose(); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const goBack = useMutation({
+    mutationFn: async () => {
+      if (!sale) return;
+      const prev = Math.max(0, stage - 1);
+      // If we step back from completed → uncomplete the sale status too.
+      const patch: { fulfillment_stage: number; status?: "packed" | "confirmed" } = { fulfillment_stage: prev };
+      if (stage >= 6) patch.status = "packed";
       const { error } = await supabase.from("sales").update(patch).eq("id", sale.id);
       if (error) throw error;
     },
@@ -281,6 +305,20 @@ function FulfillmentDialog({ sale, onClose }: { sale: SaleRow | null; onClose: (
                 </Button>
               </div>
             )}
+            {stage > 0 && (
+              <div className="border-t pt-3">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground"
+                  onClick={() => goBack.mutate()}
+                  disabled={goBack.isPending}
+                >
+                  {goBack.isPending ? <Loader2 className="size-4 animate-spin" /> : <ArrowLeft className="size-4" />}
+                  {t("wf.goBack")} · {steps[Math.max(0, stage - 1)]}
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </DialogContent>
@@ -338,6 +376,179 @@ function ReturnDialog({ sale, onClose }: { sale: SaleRow | null; onClose: () => 
                 </Button>
               </div>
             )}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+type SaleItemEdit = { id: string; description: string; qty: number; unit_price: number };
+
+function EditSaleDialog({ sale, onClose }: { sale: SaleRow | null; onClose: () => void }) {
+  const { t, locale } = useI18n();
+  const supabase = createClient();
+  const qc = useQueryClient();
+  const { data: customers } = useCustomers();
+
+  const [customerId, setCustomerId] = useState<string>("");
+  const [saleDate, setSaleDate] = useState<string>("");
+  const [discount, setDiscount] = useState<string>("0");
+  const [deliveryBilled, setDeliveryBilled] = useState<string>("0");
+  const [deliveryFee, setDeliveryFee] = useState<string>("0");
+  const [notes, setNotes] = useState<string>("");
+  const [items, setItems] = useState<SaleItemEdit[]>([]);
+  const [loadedId, setLoadedId] = useState<string | null>(null);
+
+  // Load full sale details when opened.
+  useEffect(() => {
+    if (!sale) { setLoadedId(null); return; }
+    if (loadedId === sale.id) return;
+    (async () => {
+      const { data: full } = await supabase
+        .from("sales")
+        .select("id, customer_id, sale_date, discount, delivery_billed, delivery_fee, notes, gst_rate, sale_items(id, description, qty, unit_price)")
+        .eq("id", sale.id).single();
+      if (!full) return;
+      setLoadedId(sale.id);
+      setCustomerId(full.customer_id ?? "");
+      setSaleDate(full.sale_date);
+      setDiscount(String(full.discount ?? 0));
+      setDeliveryBilled(String(full.delivery_billed ?? 0));
+      setDeliveryFee(String(full.delivery_fee ?? 0));
+      setNotes(full.notes ?? "");
+      setItems((full.sale_items ?? []).map((i) => ({
+        id: i.id, description: i.description ?? "", qty: Number(i.qty), unit_price: Number(i.unit_price),
+      })));
+    })();
+  }, [sale, supabase, loadedId]);
+
+  const gstRate = 16;
+  const subtotal = round3(items.reduce((s, i) => s + i.qty * i.unit_price, 0));
+  const disc = round3(Number(discount) || 0);
+  const taxable = Math.max(0, round3(subtotal - disc));
+  const gst = round3((taxable * gstRate) / 100);
+  const billed = round3(Number(deliveryBilled) || 0);
+  const total = round3(taxable + gst + billed);
+
+  const save = useMutation({
+    mutationFn: async () => {
+      if (!sale) return;
+      // Update each line.
+      for (const it of items) {
+        const lineTotal = round3(it.qty * it.unit_price);
+        const { error } = await supabase.from("sale_items").update({
+          description: it.description.trim() || null,
+          qty: Math.max(1, Math.round(it.qty)),
+          unit_price: it.unit_price,
+          line_total: lineTotal,
+        }).eq("id", it.id);
+        if (error) throw error;
+      }
+      // Update the sale.
+      const { error } = await supabase.from("sales").update({
+        customer_id: customerId || null,
+        sale_date: saleDate,
+        discount: disc,
+        delivery_billed: billed,
+        delivery_fee: round3(Number(deliveryFee) || 0),
+        notes: notes.trim() || null,
+        subtotal,
+        gst_amount: gst,
+        total,
+      }).eq("id", sale.id);
+      if (error) throw error;
+      // Re-sync the matching cash inflow if it exists.
+      const { data: ct } = await supabase
+        .from("cash_transactions").select("id, amount")
+        .eq("ref_table", "sales").eq("ref_id", sale.id)
+        .eq("direction", "in").eq("category", "sale");
+      if (ct && ct.length === 1) {
+        await supabase.from("cash_transactions").update({ amount: total, txn_date: saleDate }).eq("id", ct[0].id);
+      }
+    },
+    onSuccess: () => {
+      toast.success(t("sales.saved"));
+      qc.invalidateQueries();
+      onClose();
+    },
+    onError: (e: { message?: string; details?: string }) => toast.error(e.details || e.message || "Save failed"),
+  });
+
+  function updateItem(id: string, patch: Partial<SaleItemEdit>) {
+    setItems((p) => p.map((i) => (i.id === id ? { ...i, ...patch } : i)));
+  }
+  function removeItem(id: string) {
+    setItems((p) => p.filter((i) => i.id !== id));
+  }
+
+  return (
+    <Dialog open={!!sale} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent onClose={onClose} className="max-w-3xl">
+        <DialogHeader><DialogTitle>{t("common.edit")} · {sale?.sale_no}</DialogTitle></DialogHeader>
+        {sale && (
+          <div className="space-y-4 py-1">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>{t("sell.customer")}</Label>
+                <Select value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
+                  <option value="">—</option>
+                  {(customers ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>{t("common.date")}</Label>
+                <Input type="date" dir="ltr" value={saleDate} onChange={(e) => setSaleDate(e.target.value)} />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>{t("sell.cart")}</Label>
+              <div className="space-y-2 rounded-md border p-2">
+                {items.length === 0 ? (
+                  <p className="p-4 text-center text-sm text-muted-foreground">{t("common.empty")}</p>
+                ) : items.map((it) => (
+                  <div key={it.id} className="grid grid-cols-12 items-center gap-2 text-sm">
+                    <Input className="col-span-6" value={it.description}
+                      onChange={(e) => updateItem(it.id, { description: e.target.value })} />
+                    <Input className="col-span-2" type="number" min={1} dir="ltr" value={it.qty}
+                      onChange={(e) => updateItem(it.id, { qty: Math.max(1, Number(e.target.value)) })} />
+                    <Input className="col-span-3" type="number" step="0.001" dir="ltr" value={it.unit_price}
+                      onChange={(e) => updateItem(it.id, { unit_price: Number(e.target.value) })} />
+                    <button type="button" onClick={() => removeItem(it.id)} className="col-span-1 text-muted-foreground hover:text-destructive">
+                      <Trash2 className="size-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="space-y-1.5"><Label>{t("common.discount")}</Label>
+                <Input type="number" step="0.001" dir="ltr" value={discount} onChange={(e) => setDiscount(e.target.value)} /></div>
+              <div className="space-y-1.5"><Label>{t("sell.deliveryBilled")}</Label>
+                <Input type="number" step="0.001" dir="ltr" value={deliveryBilled} onChange={(e) => setDeliveryBilled(e.target.value)} /></div>
+              <div className="space-y-1.5"><Label>{t("sell.delivery")}</Label>
+                <Input type="number" step="0.001" dir="ltr" value={deliveryFee} onChange={(e) => setDeliveryFee(e.target.value)} /></div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>{t("common.notes")}</Label>
+              <Input value={notes} onChange={(e) => setNotes(e.target.value)} />
+            </div>
+
+            <div className="space-y-1 rounded-md bg-muted/50 p-3 text-sm">
+              <div className="flex justify-between"><span className="text-muted-foreground">{t("common.subtotal")}</span><span>{formatJOD(subtotal, locale)}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">{t("sell.gst")}</span><span>{formatJOD(gst, locale)}</span></div>
+              <div className="flex justify-between border-t pt-1 font-bold"><span>{t("common.total")}</span><span className="text-primary">{formatJOD(total, locale)}</span></div>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={onClose}>{t("common.cancel")}</Button>
+              <Button onClick={() => save.mutate()} disabled={save.isPending}>
+                {save.isPending && <Loader2 className="size-4 animate-spin" />} {t("common.save")}
+              </Button>
+            </div>
           </div>
         )}
       </DialogContent>

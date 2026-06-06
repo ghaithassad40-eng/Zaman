@@ -183,6 +183,7 @@ export const dictionaries = {
     "wf.fulCollect": "Collect money from Delivery Company",
     "wf.markDone": "Mark this step done",
     "wf.markContacted": "Confirm courier assigned",
+    "wf.goBack": "Go back to",
     "wf.contacted": "Delivery company assigned",
     "wf.packTitle": "Package the order",
     "wf.packHint": "Pick the materials that go into this parcel — they're deducted from packaging stock and costed into the order.",
@@ -506,6 +507,7 @@ export const dictionaries = {
     "sales.return": "Return",
     "sales.returned": "Returned",
     "sales.packed": "Packed",
+    "sales.saved": "Sale updated",
     "sales.confirmReturn": "Return this sale? Stock goes back and a return-delivery fee is booked.",
   },
   ar: {
@@ -685,6 +687,7 @@ export const dictionaries = {
     "wf.fulHandover": "تسليم الطلب لشركة التوصيل",
     "wf.fulCollect": "تحصيل المبلغ من شركة التوصيل",
     "wf.markContacted": "تأكيد تعيين المندوب",
+    "wf.goBack": "العودة إلى",
     "wf.contacted": "تم تعيين شركة التوصيل",
     "wf.packTitle": "تغليف الطلب",
     "wf.packHint": "اختر المواد التي تدخل في هذا الطرد — تُخصم من مخزون التغليف وتُحتسب ضمن تكلفة الطلب.",
@@ -1009,6 +1012,7 @@ export const dictionaries = {
     "sales.return": "إرجاع",
     "sales.returned": "مُرجَع",
     "sales.packed": "مُغلَّف",
+    "sales.saved": "تم تحديث البيع",
     "sales.confirmReturn": "إرجاع هذه العملية؟ تعود البضاعة للمخزون وتُحتسب أجرة توصيل الإرجاع.",
   },
 } as const;
