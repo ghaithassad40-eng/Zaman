@@ -52,6 +52,7 @@ export async function ensureInvoiceForSale(saleId: string): Promise<InvoiceBundl
       invoice_no: docNo as string,
       sale_id: saleId,
       customer_id: sale.customer_id,
+      issue_date: sale.sale_date,
       subtotal: sale.subtotal,
       discount: sale.discount,
       delivery_fee: sale.delivery_billed,

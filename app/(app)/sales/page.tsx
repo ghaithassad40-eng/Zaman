@@ -65,10 +65,19 @@ export default function SalesPage() {
     setBusy(saleId);
     try {
       const bundle = await ensureInvoiceForSale(saleId);
-      await downloadInvoicePdf(bundle);
+      try {
+        await downloadInvoicePdf(bundle);
+      } catch (renderErr) {
+        // Invoice row was created — surface a focused message so user knows
+        // the books recorded the invoice even if the PDF render failed.
+        const msg = (renderErr as Error).message ?? "PDF render failed";
+        toast.error(`Invoice ${bundle.invoice.invoice_no} saved, but PDF failed: ${msg}`);
+        return;
+      }
       toast.success(bundle.invoice.invoice_no);
     } catch (e) {
-      toast.error((e as Error).message);
+      const err = e as { message?: string; code?: string; details?: string };
+      toast.error(err.details || err.message || "Failed to issue invoice");
     } finally {
       setBusy(null);
     }

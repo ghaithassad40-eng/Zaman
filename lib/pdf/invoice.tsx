@@ -10,9 +10,11 @@ import {
 import type { Tables } from "@/types/database.types";
 
 // Register an Arabic-capable font so the store name / labels render correctly.
+// If the CDN load fails (offline / blocked), we render with the default font.
 let fontsRegistered = false;
+let fontsRegisterFailed = false;
 function registerFonts() {
-  if (fontsRegistered) return;
+  if (fontsRegistered || fontsRegisterFailed) return;
   try {
     Font.register({
       family: "Amiri",
@@ -23,12 +25,12 @@ function registerFonts() {
     });
     fontsRegistered = true;
   } catch {
-    // fall back to default font silently
+    fontsRegisterFailed = true;
   }
 }
 
 const styles = StyleSheet.create({
-  page: { padding: 36, fontSize: 10, color: "#221c10", fontFamily: "Amiri" },
+  page: { padding: 36, fontSize: 10, color: "#221c10" },
   header: { flexDirection: "row", justifyContent: "space-between", marginBottom: 18 },
   brand: { fontSize: 20, fontWeight: 700, color: "#9a7426" },
   brandSub: { fontSize: 11, color: "#9a7426" },
@@ -71,9 +73,10 @@ export function InvoiceDocument({
   company: Tables<"company_settings"> | null;
   customer: Tables<"customers"> | null;
 }) {
+  const pageStyle = fontsRegistered ? [styles.page, { fontFamily: "Amiri" }] : styles.page;
   return (
     <Document>
-      <Page size="A4" style={styles.page}>
+      <Page size="A4" style={pageStyle}>
         <View style={styles.header}>
           <View>
             <Text style={styles.brand}>ZAMAN WATCH</Text>
@@ -124,8 +127,8 @@ export function InvoiceDocument({
           </View>
           {items.map((it, i) => (
             <View style={styles.tr} key={i}>
-              <Text style={[styles.td, styles.cDesc]}>{it.description}</Text>
-              <Text style={[styles.td, styles.cQty]}>{it.qty}</Text>
+              <Text style={[styles.td, styles.cDesc]}>{it.description || "—"}</Text>
+              <Text style={[styles.td, styles.cQty]}>{String(it.qty ?? 0)}</Text>
               <Text style={[styles.td, styles.cPrice]}>{money(it.unit_price)}</Text>
               <Text style={[styles.td, styles.cTotal]}>{money(it.line_total)}</Text>
             </View>
@@ -174,7 +177,20 @@ export async function downloadInvoicePdf(args: {
   customer: Tables<"customers"> | null;
 }) {
   registerFonts();
-  const blob = await pdf(<InvoiceDocument {...args} />).toBlob();
+  let blob: Blob;
+  try {
+    blob = await pdf(<InvoiceDocument {...args} />).toBlob();
+  } catch (err) {
+    // The Amiri CDN font may have failed to load — retry once with the
+    // built-in font so the user still gets a usable invoice.
+    const msg = (err as Error).message ?? "";
+    if (msg.toLowerCase().includes("font") || msg.toLowerCase().includes("fetch")) {
+      fontsRegisterFailed = true;
+      blob = await pdf(<InvoiceDocument {...args} />).toBlob();
+    } else {
+      throw err;
+    }
+  }
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
