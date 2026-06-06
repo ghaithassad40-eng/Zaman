@@ -10,8 +10,9 @@ import {
 import type { Tables } from "@/types/database.types";
 
 let fontsRegistered = false;
+let fontsRegisterFailed = false;
 function registerFonts() {
-  if (fontsRegistered) return;
+  if (fontsRegistered || fontsRegisterFailed) return;
   try {
     Font.register({
       family: "Amiri",
@@ -21,7 +22,7 @@ function registerFonts() {
       ],
     });
     fontsRegistered = true;
-  } catch { /* ignore */ }
+  } catch { fontsRegisterFailed = true; }
 }
 
 export type FinSnapshot = {
@@ -42,7 +43,7 @@ export type AuditorReportArgs = {
 };
 
 const s = StyleSheet.create({
-  page: { paddingTop: 46, paddingBottom: 56, paddingHorizontal: 44, fontSize: 9.5, color: "#1c1810", fontFamily: "Amiri", lineHeight: 1.5 },
+  page: { paddingTop: 46, paddingBottom: 56, paddingHorizontal: 44, fontSize: 9.5, color: "#1c1810", lineHeight: 1.5 },
   center: { textAlign: "center" },
   brand: { fontSize: 22, fontWeight: 700, color: "#9a7426", textAlign: "center" },
   brandAr: { fontSize: 14, color: "#9a7426", textAlign: "center", marginTop: 2 },
@@ -142,11 +143,12 @@ export function AuditorReportDocument({ company, current, prior, period, generat
   const auditorFirm = company?.auditor_firm || "[Audit Firm]";
   const auditorName = company?.auditor_name || "[Licensed Auditor]";
   const auditorLic = company?.auditor_license || "____";
+  const pageStyle = fontsRegistered ? [s.page, { fontFamily: "Amiri" }] : s.page;
 
   return (
     <Document>
       {/* COVER */}
-      <Page size="A4" style={s.page}>
+      <Page size="A4" style={pageStyle}>
         <Text style={s.brand}>{name.toUpperCase()}</Text>
         <Text style={s.brandAr}>{nameAr}</Text>
         <View style={s.coverWrap}>
@@ -166,7 +168,7 @@ export function AuditorReportDocument({ company, current, prior, period, generat
       </Page>
 
       {/* AUDITOR'S REPORT */}
-      <Page size="A4" style={s.page}>
+      <Page size="A4" style={pageStyle}>
         <Text style={s.h1}>INDEPENDENT AUDITOR&apos;S REPORT</Text>
         <Text style={s.h1Ar}>تقرير المدقق المستقل</Text>
         <Text style={s.strong}>To the Partners of {name}</Text>
@@ -234,7 +236,7 @@ export function AuditorReportDocument({ company, current, prior, period, generat
       </Page>
 
       {/* STATEMENT OF FINANCIAL POSITION */}
-      <Page size="A4" style={s.page}>
+      <Page size="A4" style={pageStyle}>
         <Text style={s.h1}>STATEMENT OF FINANCIAL POSITION</Text>
         <Text style={s.h1Ar}>قائمة المركز المالي</Text>
         <Text style={[s.small, s.muted, { marginBottom: 6 }]}>As at {period.to} — All amounts in Jordanian Dinars (JOD)</Text>
@@ -266,7 +268,7 @@ export function AuditorReportDocument({ company, current, prior, period, generat
       </Page>
 
       {/* STATEMENT OF PROFIT OR LOSS */}
-      <Page size="A4" style={s.page}>
+      <Page size="A4" style={pageStyle}>
         <Text style={s.h1}>STATEMENT OF PROFIT OR LOSS</Text>
         <Text style={s.h1Ar}>قائمة الأرباح أو الخسائر</Text>
         <Text style={[s.small, s.muted, { marginBottom: 6 }]}>For the {period.closingMethodEn.toLowerCase()} period ended {period.to} — in JOD</Text>
@@ -284,7 +286,7 @@ export function AuditorReportDocument({ company, current, prior, period, generat
       </Page>
 
       {/* STATEMENT OF CHANGES IN EQUITY */}
-      <Page size="A4" style={s.page}>
+      <Page size="A4" style={pageStyle}>
         <Text style={s.h1}>STATEMENT OF CHANGES IN PARTNERS&apos; EQUITY</Text>
         <Text style={s.h1Ar}>قائمة التغيّرات في حقوق الشركاء</Text>
         <Text style={[s.small, s.muted, { marginBottom: 6 }]}>For the {period.closingMethodEn.toLowerCase()} period ended {period.to} — in JOD</Text>
@@ -311,7 +313,7 @@ export function AuditorReportDocument({ company, current, prior, period, generat
       </Page>
 
       {/* STATEMENT OF CASH FLOWS */}
-      <Page size="A4" style={s.page}>
+      <Page size="A4" style={pageStyle}>
         <Text style={s.h1}>STATEMENT OF CASH FLOWS</Text>
         <Text style={s.h1Ar}>قائمة التدفقات النقدية</Text>
         <Text style={[s.small, s.muted, { marginBottom: 6 }]}>For the {period.closingMethodEn.toLowerCase()} period ended {period.to} — in JOD (indirect method)</Text>
@@ -332,7 +334,7 @@ export function AuditorReportDocument({ company, current, prior, period, generat
       </Page>
 
       {/* NOTES */}
-      <Page size="A4" style={s.page}>
+      <Page size="A4" style={pageStyle}>
         <Text style={s.h1}>NOTES TO THE FINANCIAL STATEMENTS</Text>
         <Text style={s.h1Ar}>إيضاحات حول القوائم المالية</Text>
 
@@ -391,7 +393,19 @@ export function AuditorReportDocument({ company, current, prior, period, generat
 
 export async function downloadAuditorReport(args: AuditorReportArgs) {
   registerFonts();
-  const blob = await pdf(<AuditorReportDocument {...args} />).toBlob();
+  let blob: Blob;
+  try {
+    blob = await pdf(<AuditorReportDocument {...args} />).toBlob();
+  } catch (err) {
+    const msg = (err as Error).message ?? "";
+    if (msg.toLowerCase().includes("font") || msg.toLowerCase().includes("fetch")) {
+      fontsRegisterFailed = true;
+      fontsRegistered = false;
+      blob = await pdf(<AuditorReportDocument {...args} />).toBlob();
+    } else {
+      throw err;
+    }
+  }
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

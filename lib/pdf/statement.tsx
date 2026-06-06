@@ -10,8 +10,9 @@ import {
 import type { Tables } from "@/types/database.types";
 
 let fontsRegistered = false;
+let fontsRegisterFailed = false;
 function registerFonts() {
-  if (fontsRegistered) return;
+  if (fontsRegistered || fontsRegisterFailed) return;
   try {
     Font.register({
       family: "Amiri",
@@ -22,12 +23,12 @@ function registerFonts() {
     });
     fontsRegistered = true;
   } catch {
-    // fall back silently
+    fontsRegisterFailed = true;
   }
 }
 
 const styles = StyleSheet.create({
-  page: { padding: 36, fontSize: 9, color: "#221c10", fontFamily: "Amiri" },
+  page: { padding: 36, fontSize: 9, color: "#221c10" },
   header: { flexDirection: "row", justifyContent: "space-between", marginBottom: 16 },
   brand: { fontSize: 20, fontWeight: 700, color: "#9a7426" },
   brandSub: { fontSize: 11, color: "#9a7426" },
@@ -97,9 +98,10 @@ export function StatementDocument({
   periodLabel,
 }: StatementArgs) {
   const balLabel = closing >= 0 ? oweLabel : oweReverseLabel;
+  const pageStyle = fontsRegistered ? [styles.page, { fontFamily: "Amiri" }] : styles.page;
   return (
     <Document>
-      <Page size="A4" style={styles.page}>
+      <Page size="A4" style={pageStyle}>
         <View style={styles.header}>
           <View>
             <Text style={styles.brand}>{company?.name || "ZAMAN WATCH"}</Text>
@@ -181,7 +183,19 @@ export function StatementDocument({
 
 export async function downloadStatementPdf(args: StatementArgs & { filename?: string }) {
   registerFonts();
-  const blob = await pdf(<StatementDocument {...args} />).toBlob();
+  let blob: Blob;
+  try {
+    blob = await pdf(<StatementDocument {...args} />).toBlob();
+  } catch (err) {
+    const msg = (err as Error).message ?? "";
+    if (msg.toLowerCase().includes("font") || msg.toLowerCase().includes("fetch")) {
+      fontsRegisterFailed = true;
+      fontsRegistered = false;
+      blob = await pdf(<StatementDocument {...args} />).toBlob();
+    } else {
+      throw err;
+    }
+  }
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
