@@ -112,7 +112,7 @@ export default function PurchasesPage() {
     if (error || !purchase) throw new Error(error?.message ?? "could not create purchase");
 
     for (const l of lines) {
-      let { data: prod } = await supabase.from("products").select("id").eq("sku", l.sku).is("deleted_at", null).maybeSingle();
+      let { data: prod } = await supabase.from("products").select("id").eq("sku", l.sku).is("deleted_at", null).order("created_at").limit(1).maybeSingle();
       let productId = prod?.id as string | undefined;
       if (!productId) {
         const ins = await supabase.from("products").insert({ sku: l.sku, name: l.name, source: "manual", created_by: userData.user?.id }).select("id").single();

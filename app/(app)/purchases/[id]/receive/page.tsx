@@ -27,7 +27,7 @@ export default function ReceiveWizard() {
 
   const [step, setStep] = useState(0);
   const [items, setItems] = useState<Item[]>([]);
-  const [loaded, setLoaded] = useState(false);
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
 
   const { data: purchase, isLoading } = useQuery({
     queryKey: ["purchase-receive", id],
@@ -42,8 +42,9 @@ export default function ReceiveWizard() {
     },
   });
 
-  if (purchase && !loaded) {
-    setLoaded(true);
+  if (purchase && loadedFor !== id) {
+    setLoadedFor(id);
+    setStep(0);
     setItems((purchase.purchase_items as Item[]) ?? []);
   }
 

@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -37,9 +38,11 @@ import { numOr, type Col } from "@/lib/xlsx-utils";
 
 const PROD_COLS: Col[] = [
   { key: "sku", header: "SKU" },
-  { key: "name", header: "Name" },
-  { key: "name_ar", header: "Name (Arabic)" },
   { key: "brand", header: "Brand" },
+  { key: "model", header: "Model" },
+  { key: "color", header: "Color" },
+  { key: "feature", header: "Feature (Smart / Battery / Automatic)" },
+  { key: "gender", header: "Gender (Men / Women)" },
   { key: "description", header: "Description" },
   { key: "opening_qty", header: "Opening Balance Qty" },
   { key: "actual_cost", header: "Actual Cost (JOD)" },
@@ -49,7 +52,8 @@ const PROD_COLS: Col[] = [
   { key: "expected_price", header: "Expected Selling Price (JOD)" },
 ];
 const PROD_EXAMPLE = [
-  { sku: "sj2401234567", name: "BIDEN Mens Watch Black", name_ar: "ساعة بايدن رجالي اسود", brand: "BIDEN", description: "Stainless steel, quartz", opening_qty: 10, actual_cost: 6.5, sold_qty: 3, avg_selling_price: 18, selling_price: 18, expected_price: 20 },
+  { sku: "ml500", brand: "Casio", model: "ML500", color: "Black", feature: "Battery", gender: "Men", description: "Stainless steel, quartz", opening_qty: 10, actual_cost: 6.5, sold_qty: 3, avg_selling_price: 18, selling_price: 18, expected_price: 20 },
+  { sku: "ml500", brand: "Casio", model: "ML500", color: "Silver", feature: "Battery", gender: "Men", description: "Stainless steel, quartz", opening_qty: 5, actual_cost: 6.5, sold_qty: 1, avg_selling_price: 18, selling_price: 18, expected_price: 20 },
 ];
 
 type ProductRow = {
@@ -57,7 +61,11 @@ type ProductRow = {
   sku: string;
   name: string;
   name_ar: string | null;
+  color: string;
   brand: string | null;
+  model: string | null;
+  feature: string | null;
+  gender: string | null;
   description: string | null;
   source_url: string | null;
   image_urls: string[];
@@ -71,6 +79,15 @@ type ProductRow = {
   inventory: { qty_on_hand: number; avg_unit_cost: number } | null;
 };
 
+/** Build the product name from structured fields, in the form
+ *  "Brand Model Color Feature Gender" — e.g. "Casio ML500 Black Battery Men". */
+export function buildProductName(p: { brand?: string; model?: string; color?: string; feature?: string; gender?: string; name?: string }): string {
+  const parts = [p.brand, p.model, p.color, p.feature, p.gender]
+    .map((x) => (x ?? "").trim())
+    .filter(Boolean);
+  return parts.length > 0 ? parts.join(" ") : (p.name ?? "").trim();
+}
+
 function useProducts() {
   const supabase = createClient();
   return useQuery({
@@ -79,7 +96,7 @@ function useProducts() {
       const { data, error } = await supabase
         .from("products")
         .select(
-          "id, sku, name, name_ar, brand, description, source_url, image_urls, default_selling_price, expected_selling_price, opening_qty, actual_cost, avg_selling_price, historical_units_sold, is_active, inventory(qty_on_hand, avg_unit_cost)",
+          "id, sku, name, name_ar, color, brand, model, feature, gender, description, source_url, image_urls, default_selling_price, expected_selling_price, opening_qty, actual_cost, avg_selling_price, historical_units_sold, is_active, inventory(qty_on_hand, avg_unit_cost)",
         )
         .is("deleted_at", null)
         .order("created_at", { ascending: false });
@@ -97,13 +114,23 @@ export default function ProductsPage() {
   const [dialog, setDialog] = useState<{ open: boolean; product: ProductRow | null }>({ open: false, product: null });
   const [adjust, setAdjust] = useState<ProductRow | null>(null);
   const [search, setSearch] = useState("");
+  const [colorFilter, setColorFilter] = useState("");
+
+  const colors = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of data ?? []) if (p.color?.trim()) set.add(p.color.trim());
+    return Array.from(set).sort();
+  }, [data]);
 
   async function importProducts(rows: Record<string, string>[]) {
     const { data: userData } = await supabase.auth.getUser();
     let created = 0;
     const errors: string[] = [];
     for (const r of rows) {
-      if (!r.sku || !r.name) { errors.push("Row missing SKU or Name"); continue; }
+      const derivedName = buildProductName({
+        brand: r.brand, model: r.model, color: r.color, feature: r.feature, gender: r.gender, name: r.name,
+      });
+      if (!r.sku || !derivedName) { errors.push("Row missing SKU or product details (brand/model/…)"); continue; }
       const opening = Math.max(0, Math.round(numOr(r.opening_qty)));
       const sold = Math.max(0, Math.round(numOr(r.sold_qty)));
       const actualCost = numOr(r.actual_cost);
@@ -113,9 +140,12 @@ export default function ProductsPage() {
         .upsert(
           {
             sku: r.sku,
-            name: r.name,
-            name_ar: r.name_ar || null,
+            name: derivedName,
+            color: (r.color ?? "").trim(),
             brand: r.brand || null,
+            model: r.model || null,
+            feature: r.feature || null,
+            gender: r.gender || null,
             description: r.description || null,
             source: "manual",
             opening_qty: opening,
@@ -127,7 +157,7 @@ export default function ProductsPage() {
             expected_selling_price: r.expected_price ? numOr(r.expected_price) : null,
             created_by: userData.user?.id,
           },
-          { onConflict: "sku" },
+          { onConflict: "sku,color" },
         )
         .select("id")
         .single();
@@ -146,15 +176,21 @@ export default function ProductsPage() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return data ?? [];
-    return (data ?? []).filter(
-      (p) =>
+    return (data ?? []).filter((p) => {
+      if (colorFilter && (p.color ?? "") !== colorFilter) return false;
+      if (!q) return true;
+      return (
         p.name.toLowerCase().includes(q) ||
         p.sku.toLowerCase().includes(q) ||
         (p.name_ar ?? "").includes(search.trim()) ||
-        (p.brand ?? "").toLowerCase().includes(q),
-    );
-  }, [data, search]);
+        (p.color ?? "").toLowerCase().includes(q) ||
+        (p.brand ?? "").toLowerCase().includes(q) ||
+        (p.model ?? "").toLowerCase().includes(q) ||
+        (p.feature ?? "").toLowerCase().includes(q) ||
+        (p.gender ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [data, search, colorFilter]);
 
   const forecast = useMemo(() => {
     let rev = 0, cost = 0;
@@ -184,14 +220,22 @@ export default function ProductsPage() {
         }
       />
 
-      <div className="relative mb-4 max-w-sm">
-        <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          className="ps-9"
-          placeholder={t("common.search")}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <div className="relative w-full max-w-sm flex-1">
+          <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            className="ps-9"
+            placeholder={t("common.search")}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        {colors.length > 0 && (
+          <Select className="w-40" value={colorFilter} onChange={(e) => setColorFilter(e.target.value)}>
+            <option value="">{t("products.allColors")}</option>
+            {colors.map((c) => <option key={c} value={c}>{c}</option>)}
+          </Select>
+        )}
       </div>
 
       {forecast.rev > 0 && (
@@ -258,8 +302,9 @@ export default function ProductsPage() {
                           )}
                         </div>
                         <div className="min-w-0">
-                          <div className="truncate font-medium">
-                            {locale === "ar" && p.name_ar ? p.name_ar : p.name}
+                          <div className="flex items-center gap-1.5">
+                            <span className="truncate font-medium">{locale === "ar" && p.name_ar ? p.name_ar : p.name}</span>
+                            {p.color && <Badge variant="outline" className="shrink-0 text-[10px]">{p.color}</Badge>}
                           </div>
                           {p.brand && (
                             <div className="truncate text-xs text-muted-foreground">{p.brand}</div>
@@ -427,6 +472,10 @@ function ProductDialog({
     name: "",
     name_ar: "",
     brand: "",
+    model: "",
+    color: "",
+    feature: "",
+    gender: "",
     description: "",
     source_url: "",
     price: "",
@@ -448,6 +497,10 @@ function ProductDialog({
       name: product?.name ?? "",
       name_ar: product?.name_ar ?? "",
       brand: product?.brand ?? "",
+      model: product?.model ?? "",
+      color: product?.color ?? "",
+      feature: product?.feature ?? "",
+      gender: product?.gender ?? "",
       description: product?.description ?? "",
       source_url: product?.source_url ?? "",
       price: product?.default_selling_price != null ? String(product.default_selling_price) : "",
@@ -480,12 +533,21 @@ function ProductDialog({
       const actualCost = form.actual ? numOr(form.actual) : null;
       const avgSell = form.avgSell ? numOr(form.avgSell) : null;
 
+      const derivedName = buildProductName({
+        brand: form.brand, model: form.model, color: form.color, feature: form.feature, gender: form.gender, name: form.name,
+      });
+      if (!derivedName) throw new Error("Enter at least the Brand or Model to build the product name.");
+
       if (isEdit && product) {
         const patch: TablesUpdate<"products"> = {
           sku: form.sku.trim(),
-          name: form.name.trim(),
+          name: derivedName,
           name_ar: form.name_ar.trim() || null,
+          color: form.color.trim(),
           brand: form.brand.trim() || null,
+          model: form.model.trim() || null,
+          feature: form.feature.trim() || null,
+          gender: form.gender.trim() || null,
           description: form.description.trim() || null,
           source_url: form.source_url.trim() || null,
           image_urls: imageUrls,
@@ -509,9 +571,13 @@ function ProductDialog({
           .from("products")
           .insert({
             sku: form.sku.trim(),
-            name: form.name.trim(),
+            name: derivedName,
             name_ar: form.name_ar.trim() || null,
+            color: form.color.trim(),
             brand: form.brand.trim() || null,
+            model: form.model.trim() || null,
+            feature: form.feature.trim() || null,
+            gender: form.gender.trim() || null,
             description: form.description.trim() || null,
             source: "manual",
             source_url: form.source_url.trim() || null,
@@ -560,21 +626,55 @@ function ProductDialog({
           }}
           className="grid grid-cols-1 gap-4 sm:grid-cols-2"
         >
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 sm:col-span-2">
             <Label>{t("products.sku")} *</Label>
             <Input required dir="ltr" value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} />
           </div>
           <div className="space-y-1.5">
             <Label>{t("products.brand")}</Label>
-            <Input value={form.brand} onChange={(e) => setForm({ ...form, brand: e.target.value })} />
+            <Input list="brand-list" value={form.brand} onChange={(e) => setForm({ ...form, brand: e.target.value })} placeholder="Casio" />
+            <datalist id="brand-list">
+              <option value="Casio" /><option value="Citizen" /><option value="Seiko" /><option value="Rolex" /><option value="BIDEN" /><option value="Fossil" />
+            </datalist>
           </div>
           <div className="space-y-1.5">
-            <Label>{t("common.name")} (EN) *</Label>
-            <Input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+            <Label>{t("products.model")}</Label>
+            <Input value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} placeholder="ML500" />
           </div>
           <div className="space-y-1.5">
+            <Label>{t("products.color")}</Label>
+            <Input list="color-list" value={form.color} onChange={(e) => setForm({ ...form, color: e.target.value })} placeholder="Black" />
+            <datalist id="color-list">
+              <option value="Black" /><option value="Silver" /><option value="Gold" /><option value="Rose Gold" /><option value="Blue" /><option value="Brown" /><option value="White" />
+            </datalist>
+          </div>
+          <div className="space-y-1.5">
+            <Label>{t("products.feature")}</Label>
+            <Select value={form.feature} onChange={(e) => setForm({ ...form, feature: e.target.value })}>
+              <option value="">—</option>
+              <option value="Smart">Smart</option>
+              <option value="Battery">Battery</option>
+              <option value="Automatic">Automatic</option>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>{t("products.gender")}</Label>
+            <Select value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })}>
+              <option value="">—</option>
+              <option value="Men">Men</option>
+              <option value="Women">Women</option>
+              <option value="Unisex">Unisex</option>
+            </Select>
+          </div>
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label>{t("products.namePreview")}</Label>
+            <div className="rounded-md border bg-muted/50 px-3 py-2 text-sm font-medium">
+              {buildProductName(form) || <span className="text-muted-foreground">{t("products.namePreviewHint")}</span>}
+            </div>
+          </div>
+          <div className="space-y-1.5 sm:col-span-2">
             <Label>{t("common.name")} (ع)</Label>
-            <Input dir="rtl" value={form.name_ar} onChange={(e) => setForm({ ...form, name_ar: e.target.value })} />
+            <Input dir="rtl" value={form.name_ar} onChange={(e) => setForm({ ...form, name_ar: e.target.value })} placeholder="اختياري" />
           </div>
           <div className="space-y-1.5 sm:col-span-2">
             <Label>{t("products.description")}</Label>

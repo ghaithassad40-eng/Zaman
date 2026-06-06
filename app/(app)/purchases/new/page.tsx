@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Plus, Trash2, Loader2, ArrowLeft } from "lucide-react";
 import Link from "next/link";
@@ -36,7 +36,20 @@ export default function NewPurchasePage() {
   const supabase = createClient();
   const qc = useQueryClient();
   const { data: products } = useSellableProducts();
+  const { data: accounts } = useQuery({
+    queryKey: ["accounts-pay"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("accounts")
+        .select("id, name")
+        .eq("is_courier", false)
+        .is("deleted_at", null)
+        .order("created_at");
+      return data ?? [];
+    },
+  });
 
+  const [paidAccount, setPaidAccount] = useState("");
   const [reference, setReference] = useState("");
   const [orderDate, setOrderDate] = useState(new Date().toISOString().slice(0, 10));
   const [srcCurrency, setSrcCurrency] = useState("USD");
@@ -100,11 +113,28 @@ export default function NewPurchasePage() {
           other_cost: round3(Number(other) || 0),
           total_landed: computed.totalLanded,
           status: "ordered",
+          paid_account_id: paidAccount || null,
           created_by: uid,
         })
         .select("id")
         .single();
       if (pErr) throw pErr;
+
+      // Pay from the chosen account — deduct the landed total.
+      if (paidAccount && computed.totalLanded > 0) {
+        const { error: payErr } = await supabase.from("cash_transactions").insert({
+          account_id: paidAccount,
+          direction: "out",
+          amount: computed.totalLanded,
+          category: "purchase",
+          txn_date: orderDate,
+          ref_table: "purchases",
+          ref_id: purchase.id,
+          note: reference.trim() || (docNo as string) || "Purchase",
+          created_by: uid,
+        });
+        if (payErr) throw payErr;
+      }
 
       for (const l of valid) {
         let productId = l.productId;
@@ -277,6 +307,17 @@ export default function NewPurchasePage() {
                 <span>{t("purchases.landed")}</span>
                 <span className="text-primary">{formatJOD(computed.totalLanded, locale)}</span>
               </div>
+            </div>
+
+            <div className="space-y-1 border-t pt-3">
+              <Label className="text-xs">{t("purchases.payment")}</Label>
+              <Select value={paidAccount} onChange={(e) => setPaidAccount(e.target.value)}>
+                <option value="">{t("purchases.unpaid")}</option>
+                {(accounts ?? []).map((a) => (
+                  <option key={a.id} value={a.id}>{a.name}</option>
+                ))}
+              </Select>
+              {paidAccount && <p className="text-xs text-muted-foreground">{t("purchases.paidNote")}</p>}
             </div>
 
             <Button className="w-full" disabled={save.isPending} onClick={() => save.mutate()}>

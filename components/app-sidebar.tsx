@@ -6,7 +6,6 @@ import {
   LayoutDashboard,
   Watch,
   PackageOpen,
-  Package,
   Landmark,
   Truck,
   Receipt,
@@ -14,6 +13,7 @@ import {
   LineChart,
   Users,
   Settings,
+  HandCoins,
 } from "lucide-react";
 import { Brand } from "@/components/brand";
 import { useI18n } from "@/lib/i18n/provider";
@@ -24,11 +24,11 @@ const NAV: { href: string; key: DictKey; icon: React.ElementType }[] = [
   { href: "/", key: "nav.dashboard", icon: LayoutDashboard },
   { href: "/products", key: "nav.products", icon: Watch },
   { href: "/purchases", key: "nav.purchases", icon: PackageOpen },
-  { href: "/assets", key: "nav.assets", icon: Package },
   { href: "/sales", key: "nav.sales", icon: Receipt },
   { href: "/banks", key: "nav.banks", icon: Landmark },
-  { href: "/delivery", key: "nav.delivery", icon: Truck },
+  { href: "/vendors", key: "nav.vendors", icon: Truck },
   { href: "/reports", key: "nav.reports", icon: BarChart3 },
+  { href: "/dividends", key: "nav.dividends", icon: HandCoins },
   { href: "/analytics", key: "nav.analytics", icon: LineChart },
   { href: "/customers", key: "nav.customers", icon: Users },
   { href: "/settings", key: "nav.settings", icon: Settings },

@@ -3,10 +3,11 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Users, Loader2 } from "lucide-react";
+import { Plus, Users, Loader2, Pencil, Trash2, FileText } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/provider";
-import { useCustomers } from "@/lib/hooks";
+import { useCustomers, useCompanySettings } from "@/lib/hooks";
+import { downloadCustomerStatement } from "@/lib/statements";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,19 +28,45 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import type { Tables } from "@/types/database.types";
+
+type Customer = Tables<"customers">;
+const emptyForm = { first_name: "", last_name: "", phone: "", instagram: "", address: "", city: "" };
 
 export default function CustomersPage() {
   const { t } = useI18n();
   const { data, isLoading } = useCustomers();
+  const { data: company } = useCompanySettings();
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Customer | null>(null);
   const supabase = createClient();
   const qc = useQueryClient();
+  const [busy, setBusy] = useState<string | null>(null);
 
-  const [form, setForm] = useState({ first_name: "", last_name: "", phone: "", instagram: "", address: "", city: "" });
+  const [form, setForm] = useState(emptyForm);
 
-  const add = useMutation({
+  function openAdd() {
+    setEditing(null);
+    setForm(emptyForm);
+    setOpen(true);
+  }
+
+  function openEdit(c: Customer) {
+    setEditing(c);
+    setForm({
+      first_name: c.first_name ?? "",
+      last_name: c.last_name ?? "",
+      phone: c.phone ?? "",
+      instagram: c.instagram_handle ?? "",
+      address: c.address ?? "",
+      city: c.city ?? "",
+    });
+    setOpen(true);
+  }
+
+  const save = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("customers").insert({
+      const payload = {
         first_name: form.first_name.trim() || null,
         last_name: form.last_name.trim() || null,
         name: `${form.first_name.trim()} ${form.last_name.trim()}`.trim(),
@@ -47,24 +74,67 @@ export default function CustomersPage() {
         instagram_handle: form.instagram.trim() || null,
         address: form.address.trim() || null,
         city: form.city.trim() || null,
-      });
-      if (error) throw error;
+      };
+      if (editing) {
+        const { error } = await supabase.from("customers").update(payload).eq("id", editing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("customers").insert(payload);
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
-      toast.success(t("customers.add"));
+      toast.success(editing ? t("customers.edit") : t("customers.add"));
       qc.invalidateQueries({ queryKey: ["customers"] });
-      setForm({ first_name: "", last_name: "", phone: "", instagram: "", address: "", city: "" });
+      setForm(emptyForm);
+      setEditing(null);
       setOpen(false);
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  async function remove(c: Customer) {
+    if (!window.confirm(t("customers.deleteConfirm"))) return;
+    setBusy(c.id);
+    try {
+      const { count, error: cErr } = await supabase
+        .from("sales")
+        .select("id", { count: "exact", head: true })
+        .eq("customer_id", c.id)
+        .is("deleted_at", null);
+      if (cErr) throw cErr;
+      if ((count ?? 0) > 0) {
+        toast.error(t("customers.hasTransactions"));
+        return;
+      }
+      const { error } = await supabase.from("customers").update({ deleted_at: new Date().toISOString() }).eq("id", c.id);
+      if (error) throw error;
+      toast.success(t("customers.deleted"));
+      qc.invalidateQueries({ queryKey: ["customers"] });
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function statement(c: Customer) {
+    setBusy(c.id);
+    try {
+      await downloadCustomerStatement({ customer: c, company: company ?? null });
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
 
   return (
     <>
       <PageHeader
         title={t("customers.title")}
         action={
-          <Button onClick={() => setOpen(true)}>
+          <Button onClick={openAdd}>
             <Plus className="size-4" /> {t("customers.add")}
           </Button>
         }
@@ -84,8 +154,8 @@ export default function CustomersPage() {
                   <TableHead>{t("common.name")}</TableHead>
                   <TableHead>{t("common.phone")}</TableHead>
                   <TableHead>{t("customers.instagram")}</TableHead>
-                  <TableHead>{t("common.address")}</TableHead>
                   <TableHead>{t("customers.city")}</TableHead>
+                  <TableHead className="text-end">{t("common.actions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -94,8 +164,21 @@ export default function CustomersPage() {
                     <TableCell className="font-medium">{c.name}</TableCell>
                     <TableCell dir="ltr" className="text-muted-foreground">{c.phone ?? "—"}</TableCell>
                     <TableCell dir="ltr" className="text-muted-foreground">{c.instagram_handle ?? "—"}</TableCell>
-                    <TableCell className="text-muted-foreground">{c.address ?? "—"}</TableCell>
                     <TableCell className="text-muted-foreground">{c.city ?? "—"}</TableCell>
+                    <TableCell className="text-end">
+                      <div className="flex justify-end gap-1">
+                        <Button size="sm" variant="outline" disabled={busy === c.id} onClick={() => statement(c)} title={t("customers.statement")}>
+                          {busy === c.id ? <Loader2 className="size-4 animate-spin" /> : <FileText className="size-4" />}
+                          <span className="hidden sm:inline">{t("customers.statement")}</span>
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => openEdit(c)} title={t("common.edit")}>
+                          <Pencil className="size-4" />
+                        </Button>
+                        <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" disabled={busy === c.id} onClick={() => remove(c)} title={t("common.delete")}>
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -112,12 +195,12 @@ export default function CustomersPage() {
       <Dialog open={open} onOpenChange={(o) => !o && setOpen(false)}>
         <DialogContent onClose={() => setOpen(false)}>
           <DialogHeader>
-            <DialogTitle>{t("customers.add")}</DialogTitle>
+            <DialogTitle>{editing ? t("customers.edit") : t("customers.add")}</DialogTitle>
           </DialogHeader>
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              add.mutate();
+              save.mutate();
             }}
             className="grid grid-cols-1 gap-4 sm:grid-cols-2"
           >
@@ -149,8 +232,8 @@ export default function CustomersPage() {
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                 {t("common.cancel")}
               </Button>
-              <Button type="submit" disabled={add.isPending}>
-                {add.isPending && <Loader2 className="size-4 animate-spin" />}
+              <Button type="submit" disabled={save.isPending}>
+                {save.isPending && <Loader2 className="size-4 animate-spin" />}
                 {t("common.save")}
               </Button>
             </div>

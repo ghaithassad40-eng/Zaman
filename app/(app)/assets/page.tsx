@@ -35,8 +35,8 @@ import { ImportControls } from "@/components/import-controls";
 import { numOr, type Col } from "@/lib/xlsx-utils";
 
 const PKG_COLS: Col[] = [
+  { key: "sku", header: "SKU" },
   { key: "name", header: "Name" },
-  { key: "name_ar", header: "Name (Arabic)" },
   { key: "kind", header: "Type (consumable/equipment)" },
   { key: "category", header: "Category (box/bag/label/gift/printer/other)" },
   { key: "purchase_cost", header: "Total Cost (JOD)" },
@@ -46,8 +46,8 @@ const PKG_COLS: Col[] = [
   { key: "qty_per_order", header: "Used Per Parcel" },
 ];
 const PKG_EXAMPLE = [
-  { name: "Shipping box", name_ar: "علبة شحن", kind: "consumable", category: "box", purchase_cost: 10, qty_purchased: 100, qty_remaining: 100, expected_uses: "", qty_per_order: 1 },
-  { name: "Thermal printer", name_ar: "طابعة حرارية", kind: "equipment", category: "printer", purchase_cost: 50, qty_purchased: 1, qty_remaining: "", expected_uses: 5000, qty_per_order: 1 },
+  { sku: "PKG-BOX-01", name: "Shipping box", kind: "consumable", category: "box", purchase_cost: 10, qty_purchased: 100, qty_remaining: 100, expected_uses: "", qty_per_order: 1 },
+  { sku: "EQ-PRN-01", name: "Thermal printer", kind: "equipment", category: "printer", purchase_cost: 50, qty_purchased: 1, qty_remaining: "", expected_uses: 5000, qty_per_order: 1 },
 ];
 
 const CATEGORY_ICON: Record<string, React.ElementType> = {
@@ -82,6 +82,7 @@ export default function AssetsPage() {
       const kind = (r.kind || "").toLowerCase() === "equipment" ? "equipment" : "consumable";
       const qtyPurchased = Math.max(1, Math.round(numOr(r.qty_purchased, 1)));
       const { error } = await supabase.from("packaging_assets").insert({
+        sku: r.sku || null,
         name: r.name,
         name_ar: r.name_ar || null,
         kind,
@@ -180,7 +181,9 @@ export default function AssetsPage() {
                           </div>
                           <div>
                             <div className="font-medium">{locale === "ar" && a.name_ar ? a.name_ar : a.name}</div>
-                            {a.category && <div className="text-xs text-muted-foreground">{a.category}</div>}
+                            <div className="text-xs text-muted-foreground">
+                              {[a.sku, a.category].filter(Boolean).join(" · ") || "—"}
+                            </div>
                           </div>
                         </div>
                       </TableCell>
@@ -228,6 +231,7 @@ function AssetDialog({ open, onClose }: { open: boolean; onClose: () => void }) 
   const qc = useQueryClient();
 
   const [form, setForm] = useState({
+    sku: "",
     name: "",
     kind: "consumable" as "consumable" | "equipment",
     category: "box",
@@ -243,6 +247,7 @@ function AssetDialog({ open, onClose }: { open: boolean; onClose: () => void }) 
       const isConsumable = form.kind === "consumable";
       const qtyPurchased = Number(form.qty_purchased) || 1;
       const { error } = await supabase.from("packaging_assets").insert({
+        sku: form.sku.trim() || null,
         name: form.name.trim(),
         kind: form.kind,
         category: form.category,
@@ -260,7 +265,7 @@ function AssetDialog({ open, onClose }: { open: boolean; onClose: () => void }) 
       qc.invalidateQueries({ queryKey: ["packaging_assets"] });
       qc.invalidateQueries({ queryKey: ["company_settings"] });
       qc.invalidateQueries({ queryKey: ["banks"] });
-      setForm({ name: "", kind: "consumable", category: "box", purchase_cost: "", qty_purchased: "1", expected_uses: "", qty_per_order: "1" });
+      setForm({ sku: "", name: "", kind: "consumable", category: "box", purchase_cost: "", qty_purchased: "1", expected_uses: "", qty_per_order: "1" });
       onClose();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -281,7 +286,11 @@ function AssetDialog({ open, onClose }: { open: boolean; onClose: () => void }) 
           }}
           className="grid grid-cols-2 gap-4"
         >
-          <div className="col-span-2 space-y-1.5">
+          <div className="space-y-1.5">
+            <Label>{t("products.sku")}</Label>
+            <Input dir="ltr" value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} />
+          </div>
+          <div className="space-y-1.5">
             <Label>{t("common.name")} *</Label>
             <Input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           </div>

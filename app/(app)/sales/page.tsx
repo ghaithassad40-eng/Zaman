@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import Link from "next/link";
-import { FileText, Loader2, Receipt, Undo2, Plus, ListChecks, CheckCircle2 } from "lucide-react";
+import { FileText, Loader2, Receipt, Undo2, Plus, ListChecks, CheckCircle2, Truck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/provider";
 import { ensureInvoiceForSale } from "@/lib/invoice-actions";
@@ -12,6 +12,7 @@ import { downloadInvoicePdf } from "@/lib/pdf/invoice";
 import { PageHeader } from "@/components/page-header";
 import { Stepper } from "@/components/stepper";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +36,7 @@ type SaleRow = {
   gross_profit: number;
   fulfillment_stage: number;
   return_stage: number;
+  delivery_vendor_id: string | null;
   customers: { name: string } | null;
 };
 
@@ -51,7 +53,7 @@ export default function SalesPage() {
     queryFn: async (): Promise<SaleRow[]> => {
       const { data, error } = await supabase
         .from("sales")
-        .select("id, sale_no, sale_date, status, total, gross_profit, fulfillment_stage, return_stage, customers(name)")
+        .select("id, sale_no, sale_date, status, total, gross_profit, fulfillment_stage, return_stage, delivery_vendor_id, customers(name)")
         .is("deleted_at", null)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -111,7 +113,7 @@ export default function SalesPage() {
                     <TableCell className="text-muted-foreground">{s.sale_date}</TableCell>
                     <TableCell>
                       <Badge variant={s.status === "cancelled" ? "destructive" : s.status === "returned" ? "warning" : "success"}>
-                        {s.status === "returned" ? t("sales.returned") : s.status}
+                        {s.status === "returned" ? t("sales.returned") : s.status === "packed" ? t("sales.packed") : s.status}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-end font-medium">{formatJOD(s.total, locale)}</TableCell>
@@ -120,7 +122,7 @@ export default function SalesPage() {
                       <div className="flex flex-wrap justify-end gap-2">
                         {s.status !== "returned" && s.status !== "cancelled" && (
                           <Button size="sm" variant="outline" onClick={() => setFulSale(s)}>
-                            <ListChecks className="size-4" /> {t("wf.fulfillment")} {s.fulfillment_stage}/5
+                            <ListChecks className="size-4" /> {t("wf.fulfillment")} {s.fulfillment_stage}/6
                           </Button>
                         )}
                         <Button
@@ -168,19 +170,66 @@ export default function SalesPage() {
 }
 
 function FulfillmentDialog({ sale, onClose }: { sale: SaleRow | null; onClose: () => void }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const supabase = createClient();
   const qc = useQueryClient();
-  const steps = [t("wf.fulCustomer"), t("wf.fulPrepare"), t("wf.fulContact"), t("wf.fulHandover"), t("wf.fulCollect")];
+  const steps = [
+    t("wf.fulCustomer"), t("wf.fulPrepare"), t("wf.fulContact"),
+    t("wf.fulInvoice"), t("wf.fulHandover"), t("wf.fulCollect"),
+  ];
   const stage = sale?.fulfillment_stage ?? 0;
+  const [vendorId, setVendorId] = useState("");
+  const [seeded, setSeeded] = useState(false);
+
+  const { data: vendors } = useQuery({
+    queryKey: ["delivery-vendors"],
+    enabled: !!sale && stage === 2,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("vendors")
+        .select("id, name, name_ar, is_default_delivery")
+        .is("deleted_at", null).eq("is_active", true).order("name");
+      return data ?? [];
+    },
+  });
+  if (sale && vendors && !seeded) {
+    setSeeded(true);
+    setVendorId(sale.delivery_vendor_id ?? vendors.find((v) => v.is_default_delivery)?.id ?? vendors[0]?.id ?? "");
+  }
 
   const advance = useMutation({
     mutationFn: async () => {
       if (!sale) return;
-      const { error } = await supabase.from("sales").update({ fulfillment_stage: Math.min(5, stage + 1) }).eq("id", sale.id);
+      const next = Math.min(6, stage + 1);
+      const patch: { fulfillment_stage: number; status?: "completed" } = { fulfillment_stage: next };
+      if (next >= 6) patch.status = "completed";
+      const { error } = await supabase.from("sales").update(patch).eq("id", sale.id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["sales-list"] }); onClose(); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const assign = useMutation({
+    mutationFn: async () => {
+      if (!sale) return;
+      if (!vendorId) throw new Error(t("reports.selectVendor"));
+      const { error } = await supabase.rpc("assign_delivery_vendor", { p_sale_id: sale.id, p_vendor_id: vendorId });
+      if (error) throw error;
+    },
+    onSuccess: () => { toast.success(t("wf.contacted")); qc.invalidateQueries(); onClose(); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const invoice = useMutation({
+    mutationFn: async () => {
+      if (!sale) return;
+      const bundle = await ensureInvoiceForSale(sale.id);
+      await downloadInvoicePdf(bundle);
+      const { error } = await supabase.from("sales").update({ fulfillment_stage: Math.max(4, stage + 1) }).eq("id", sale.id);
+      if (error) throw error;
+    },
+    onSuccess: () => { toast.success(t("sales.makeInvoice")); qc.invalidateQueries(); onClose(); },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -191,8 +240,30 @@ function FulfillmentDialog({ sale, onClose }: { sale: SaleRow | null; onClose: (
         {sale && (
           <div className="space-y-6 py-2">
             <Stepper steps={steps} current={stage} />
-            {stage >= 5 ? (
+            {stage >= 6 ? (
               <div className="flex items-center justify-center gap-2 font-medium text-success"><CheckCircle2 className="size-5" /> {t("wf.completed")}</div>
+            ) : stage === 2 ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 font-medium"><Truck className="size-4 text-primary" /> {t("wf.fulContact")}</div>
+                <Select value={vendorId} onChange={(e) => setVendorId(e.target.value)}>
+                  <option value="">—</option>
+                  {(vendors ?? []).map((v) => (
+                    <option key={v.id} value={v.id}>{locale === "ar" && v.name_ar ? v.name_ar : v.name}{v.is_default_delivery ? " ★" : ""}</option>
+                  ))}
+                </Select>
+                <div className="flex justify-end">
+                  <Button onClick={() => assign.mutate()} disabled={assign.isPending}>
+                    {assign.isPending ? <Loader2 className="size-4 animate-spin" /> : <Truck className="size-4" />} {t("wf.markContacted")}
+                  </Button>
+                </div>
+              </div>
+            ) : stage === 3 ? (
+              <div className="space-y-3 text-center">
+                <p className="text-sm text-muted-foreground">→ {steps[3]}</p>
+                <Button onClick={() => invoice.mutate()} disabled={invoice.isPending}>
+                  {invoice.isPending ? <Loader2 className="size-4 animate-spin" /> : <FileText className="size-4" />} {t("sales.makeInvoice")}
+                </Button>
+              </div>
             ) : (
               <div className="text-center">
                 <p className="mb-3 text-sm text-muted-foreground">→ {steps[stage]}</p>

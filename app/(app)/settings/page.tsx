@@ -46,6 +46,11 @@ export default function SettingsPage() {
     email: "",
     address: "",
     auto_packaging: true,
+    commercial_reg: "",
+    auditor_name: "",
+    auditor_name_ar: "",
+    auditor_firm: "",
+    auditor_license: "",
   });
 
   useEffect(() => {
@@ -61,6 +66,11 @@ export default function SettingsPage() {
         email: settings.email ?? "",
         address: settings.address ?? "",
         auto_packaging: settings.auto_packaging ?? true,
+        commercial_reg: settings.commercial_reg ?? "",
+        auditor_name: settings.auditor_name ?? "",
+        auditor_name_ar: settings.auditor_name_ar ?? "",
+        auditor_firm: settings.auditor_firm ?? "",
+        auditor_license: settings.auditor_license ?? "",
       });
     }
   }, [settings]);
@@ -94,6 +104,11 @@ export default function SettingsPage() {
           email: form.email || null,
           address: form.address || null,
           auto_packaging: form.auto_packaging,
+          commercial_reg: form.commercial_reg || null,
+          auditor_name: form.auditor_name || null,
+          auditor_name_ar: form.auditor_name_ar || null,
+          auditor_firm: form.auditor_firm || null,
+          auditor_license: form.auditor_license || null,
         })
         .eq("id", settings.id);
       if (error) throw error;
@@ -149,6 +164,26 @@ export default function SettingsPage() {
               <Field label="Address" className="sm:col-span-2">
                 <Input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
               </Field>
+
+              <div className="sm:col-span-2 mt-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {t("settings.auditSection")}
+              </div>
+              <Field label={t("settings.commercialReg")}>
+                <Input dir="ltr" value={form.commercial_reg} onChange={(e) => setForm({ ...form, commercial_reg: e.target.value })} />
+              </Field>
+              <Field label={t("settings.auditorFirm")}>
+                <Input value={form.auditor_firm} onChange={(e) => setForm({ ...form, auditor_firm: e.target.value })} />
+              </Field>
+              <Field label={`${t("settings.auditorName")} (EN)`}>
+                <Input value={form.auditor_name} onChange={(e) => setForm({ ...form, auditor_name: e.target.value })} />
+              </Field>
+              <Field label={`${t("settings.auditorName")} (ع)`}>
+                <Input dir="rtl" value={form.auditor_name_ar} onChange={(e) => setForm({ ...form, auditor_name_ar: e.target.value })} />
+              </Field>
+              <Field label={t("settings.auditorLicense")}>
+                <Input dir="ltr" value={form.auditor_license} onChange={(e) => setForm({ ...form, auditor_license: e.target.value })} />
+              </Field>
+
               <div className="sm:col-span-2 flex items-center justify-between rounded-md border bg-muted/40 p-3">
                 <label className="flex items-center gap-2 text-sm font-medium">
                   <input

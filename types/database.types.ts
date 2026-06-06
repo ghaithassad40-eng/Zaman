@@ -63,6 +63,53 @@ export type Database = {
         }
         Relationships: []
       }
+      bank_statement_lines: {
+        Row: {
+          account_id: string
+          amount: number
+          created_at: string
+          created_by: string | null
+          description: string | null
+          direction: Database["public"]["Enums"]["txn_direction"]
+          id: string
+          matched: boolean
+          matched_txn_id: string | null
+          txn_date: string
+        }
+        Insert: {
+          account_id: string
+          amount: number
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          direction: Database["public"]["Enums"]["txn_direction"]
+          id?: string
+          matched?: boolean
+          matched_txn_id?: string | null
+          txn_date: string
+        }
+        Update: {
+          account_id?: string
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          direction?: Database["public"]["Enums"]["txn_direction"]
+          id?: string
+          matched?: boolean
+          matched_txn_id?: string | null
+          txn_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_statement_lines_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cash_transactions: {
         Row: {
           account_id: string
@@ -74,8 +121,10 @@ export type Database = {
           id: string
           note: string | null
           partner_id: string | null
+          reconciled: boolean
           ref_id: string | null
           ref_table: string | null
+          statement_line_id: string | null
           txn_date: string
         }
         Insert: {
@@ -88,8 +137,10 @@ export type Database = {
           id?: string
           note?: string | null
           partner_id?: string | null
+          reconciled?: boolean
           ref_id?: string | null
           ref_table?: string | null
+          statement_line_id?: string | null
           txn_date?: string
         }
         Update: {
@@ -102,8 +153,10 @@ export type Database = {
           id?: string
           note?: string | null
           partner_id?: string | null
+          reconciled?: boolean
           ref_id?: string | null
           ref_table?: string | null
+          statement_line_id?: string | null
           txn_date?: string
         }
         Relationships: [
@@ -114,13 +167,25 @@ export type Database = {
             referencedRelation: "accounts"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "cash_transactions_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "partners"
+            referencedColumns: ["id"]
+          },
         ]
       }
       company_settings: {
         Row: {
           address: string | null
           address_ar: string | null
+          auditor_firm: string | null
+          auditor_license: string | null
+          auditor_name: string | null
+          auditor_name_ar: string | null
           auto_packaging: boolean
+          commercial_reg: string | null
           created_at: string
           currency: string
           default_delivery_fee: number
@@ -139,19 +204,56 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          address?: string | null
+          address_ar?: string | null
+          auditor_firm?: string | null
+          auditor_license?: string | null
+          auditor_name?: string | null
+          auditor_name_ar?: string | null
           auto_packaging?: boolean
+          commercial_reg?: string | null
+          created_at?: string
+          currency?: string
+          default_delivery_fee?: number
+          email?: string | null
           gst_rate?: number
+          id?: string
+          import_api_key?: string | null
+          instagram_handle?: string | null
+          logo_url?: string | null
           name?: string
           name_ar?: string
+          national_no?: string | null
           packaging_cost_per_order?: number
-          [k: string]: unknown
+          phone?: string | null
+          tax_number?: string | null
+          updated_at?: string
         }
         Update: {
+          address?: string | null
+          address_ar?: string | null
+          auditor_firm?: string | null
+          auditor_license?: string | null
+          auditor_name?: string | null
+          auditor_name_ar?: string | null
           auto_packaging?: boolean
+          commercial_reg?: string | null
+          created_at?: string
+          currency?: string
+          default_delivery_fee?: number
+          email?: string | null
           gst_rate?: number
+          id?: string
+          import_api_key?: string | null
+          instagram_handle?: string | null
+          logo_url?: string | null
+          name?: string
+          name_ar?: string
+          national_no?: string | null
           packaging_cost_per_order?: number
+          phone?: string | null
           tax_number?: string | null
-          [k: string]: unknown
+          updated_at?: string
         }
         Relationships: []
       }
@@ -172,25 +274,182 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          name?: string
-          first_name?: string | null
-          last_name?: string | null
-          phone?: string | null
-          instagram_handle?: string | null
-          city?: string | null
           address?: string | null
-          notes?: string | null
+          city?: string | null
+          created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
+          first_name?: string | null
+          id?: string
+          instagram_handle?: string | null
+          last_name?: string | null
+          name: string
+          notes?: string | null
+          phone?: string | null
+          updated_at?: string
         }
         Update: {
-          name?: string
-          first_name?: string | null
-          last_name?: string | null
-          phone?: string | null
-          instagram_handle?: string | null
-          city?: string | null
           address?: string | null
+          city?: string | null
+          created_at?: string
+          created_by?: string | null
           deleted_at?: string | null
+          first_name?: string | null
+          id?: string
+          instagram_handle?: string | null
+          last_name?: string | null
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      dividend_shares: {
+        Row: {
+          account_id: string | null
+          amount: number
+          cash_txn_id: string | null
+          confirmed: boolean
+          confirmed_by: string | null
+          confirmed_on: string | null
+          created_at: string
+          dividend_id: string
+          id: string
+          note: string | null
+          paid: boolean
+          paid_by: string | null
+          paid_on: string | null
+          partner_id: string
+          pct: number
+        }
+        Insert: {
+          account_id?: string | null
+          amount?: number
+          cash_txn_id?: string | null
+          confirmed?: boolean
+          confirmed_by?: string | null
+          confirmed_on?: string | null
+          created_at?: string
+          dividend_id: string
+          id?: string
+          note?: string | null
+          paid?: boolean
+          paid_by?: string | null
+          paid_on?: string | null
+          partner_id: string
+          pct?: number
+        }
+        Update: {
+          account_id?: string | null
+          amount?: number
+          cash_txn_id?: string | null
+          confirmed?: boolean
+          confirmed_by?: string | null
+          confirmed_on?: string | null
+          created_at?: string
+          dividend_id?: string
+          id?: string
+          note?: string | null
+          paid?: boolean
+          paid_by?: string | null
+          paid_on?: string | null
+          partner_id?: string
+          pct?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dividend_shares_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dividend_shares_dividend_id_fkey"
+            columns: ["dividend_id"]
+            isOneToOne: false
+            referencedRelation: "dividends"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dividend_shares_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "partners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dividends: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          declared_on: string
+          id: string
+          note: string | null
+          status: string
+          total_amount: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          declared_on?: string
+          id?: string
+          note?: string | null
+          status?: string
+          total_amount: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          declared_on?: string
+          id?: string
+          note?: string | null
+          status?: string
+          total_amount?: number
+        }
+        Relationships: []
+      }
+      fiscal_closes: {
+        Row: {
+          closed_at: string
+          closed_by: string | null
+          id: string
+          label: string
+          net_profit: number | null
+          period_from: string
+          period_to: string
+          retained_earnings: number | null
+          snapshot: Json | null
+          status: string
+          total_equity: number | null
+        }
+        Insert: {
+          closed_at?: string
+          closed_by?: string | null
+          id?: string
+          label: string
+          net_profit?: number | null
+          period_from: string
+          period_to: string
+          retained_earnings?: number | null
+          snapshot?: Json | null
+          status?: string
+          total_equity?: number | null
+        }
+        Update: {
+          closed_at?: string
+          closed_by?: string | null
+          id?: string
+          label?: string
+          net_profit?: number | null
+          period_from?: string
+          period_to?: string
+          retained_earnings?: number | null
+          snapshot?: Json | null
+          status?: string
+          total_equity?: number | null
         }
         Relationships: []
       }
@@ -243,17 +502,38 @@ export type Database = {
           unit_cost: number
         }
         Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
           movement_type: string
+          note?: string | null
           product_id: string
           qty: number
-          unit_cost?: number
-          ref_table?: string | null
           ref_id?: string | null
-          note?: string | null
-          created_by?: string | null
+          ref_table?: string | null
+          unit_cost?: number
         }
-        Update: { [k: string]: unknown }
-        Relationships: []
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          movement_type?: string
+          note?: string | null
+          product_id?: string
+          qty?: number
+          ref_id?: string | null
+          ref_table?: string | null
+          unit_cost?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_movements_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       invoices: {
         Row: {
@@ -279,21 +559,65 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          invoice_no: string
-          sale_id?: string | null
-          customer_id?: string | null
-          subtotal?: number
-          discount?: number
-          delivery_fee?: number
-          gst_rate?: number
-          gst_amount?: number
-          total?: number
-          tax_number?: string | null
-          status?: string
+          created_at?: string
           created_by?: string | null
+          currency?: string
+          customer_id?: string | null
+          deleted_at?: string | null
+          delivery_fee?: number
+          discount?: number
+          due_date?: string | null
+          gst_amount?: number
+          gst_rate?: number
+          id?: string
+          invoice_no: string
+          issue_date?: string
+          notes?: string | null
+          sale_id?: string | null
+          status?: string
+          subtotal?: number
+          tax_number?: string | null
+          total?: number
+          updated_at?: string
         }
-        Update: { status?: string; deleted_at?: string | null }
-        Relationships: []
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          customer_id?: string | null
+          deleted_at?: string | null
+          delivery_fee?: number
+          discount?: number
+          due_date?: string | null
+          gst_amount?: number
+          gst_rate?: number
+          id?: string
+          invoice_no?: string
+          issue_date?: string
+          notes?: string | null
+          sale_id?: string | null
+          status?: string
+          subtotal?: number
+          tax_number?: string | null
+          total?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       packaging_assets: {
         Row: {
@@ -312,31 +636,46 @@ export type Database = {
           qty_per_order: number
           qty_purchased: number
           qty_remaining: number | null
+          sku: string | null
           updated_at: string
         }
         Insert: {
+          category?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          expected_uses?: number | null
+          id?: string
+          is_active?: boolean
+          kind?: Database["public"]["Enums"]["asset_kind"]
           name: string
           name_ar?: string | null
-          kind?: Database["public"]["Enums"]["asset_kind"]
-          category?: string | null
+          notes?: string | null
           purchase_cost?: number
+          qty_per_order?: number
           qty_purchased?: number
           qty_remaining?: number | null
-          expected_uses?: number | null
-          qty_per_order?: number
-          is_active?: boolean
-          notes?: string | null
-          created_by?: string | null
+          sku?: string | null
+          updated_at?: string
         }
         Update: {
+          category?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          expected_uses?: number | null
+          id?: string
+          is_active?: boolean
+          kind?: Database["public"]["Enums"]["asset_kind"]
           name?: string
+          name_ar?: string | null
+          notes?: string | null
           purchase_cost?: number
+          qty_per_order?: number
           qty_purchased?: number
           qty_remaining?: number | null
-          expected_uses?: number | null
-          qty_per_order?: number
-          is_active?: boolean
-          deleted_at?: string | null
+          sku?: string | null
+          updated_at?: string
         }
         Relationships: []
       }
@@ -356,36 +695,59 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
-          full_name: string
-          name_ar?: string | null
+          created_at?: string
+          deleted_at?: string | null
           email?: string | null
-          phone?: string | null
+          full_name: string
+          id?: string
+          is_admin?: boolean
+          name_ar?: string | null
           ownership_pct?: number
+          phone?: string | null
+          role?: string
+          updated_at?: string
           user_id?: string | null
         }
-        Update: { full_name?: string; deleted_at?: string | null }
+        Update: {
+          created_at?: string
+          deleted_at?: string | null
+          email?: string | null
+          full_name?: string
+          id?: string
+          is_admin?: boolean
+          name_ar?: string | null
+          ownership_pct?: number
+          phone?: string | null
+          role?: string
+          updated_at?: string
+          user_id?: string | null
+        }
         Relationships: []
       }
       products: {
         Row: {
+          actual_cost: number | null
+          avg_selling_price: number | null
           brand: string | null
           category: string | null
+          color: string
           created_at: string
           created_by: string | null
           default_selling_price: number | null
-          expected_selling_price: number | null
-          historical_units_sold: number
-          historical_revenue: number
-          opening_qty: number
-          actual_cost: number | null
-          avg_selling_price: number | null
           deleted_at: string | null
           description: string | null
+          expected_selling_price: number | null
+          feature: string | null
+          gender: string | null
+          historical_revenue: number
+          historical_units_sold: number
           id: string
           image_urls: string[]
           is_active: boolean
+          model: string | null
           name: string
           name_ar: string | null
+          opening_qty: number
           sku: string
           source: string
           source_url: string | null
@@ -393,42 +755,62 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
-          sku: string
-          name: string
-          name_ar?: string | null
+          actual_cost?: number | null
+          avg_selling_price?: number | null
           brand?: string | null
           category?: string | null
-          description?: string | null
-          source?: string
-          source_url?: string | null
-          image_urls?: string[]
-          default_selling_price?: number | null
-          expected_selling_price?: number | null
-          opening_qty?: number
-          actual_cost?: number | null
-          avg_selling_price?: number | null
-          historical_units_sold?: number
-          historical_revenue?: number
+          color?: string | null
+          created_at?: string
           created_by?: string | null
-        }
-        Update: {
-          sku?: string
-          name?: string
-          name_ar?: string | null
-          brand?: string | null
-          description?: string | null
-          source_url?: string | null
           default_selling_price?: number | null
+          deleted_at?: string | null
+          description?: string | null
           expected_selling_price?: number | null
-          opening_qty?: number
-          actual_cost?: number | null
-          avg_selling_price?: number | null
-          historical_units_sold?: number
+          feature?: string | null
+          gender?: string | null
           historical_revenue?: number
+          historical_units_sold?: number
+          id?: string
           image_urls?: string[]
           is_active?: boolean
+          model?: string | null
+          name: string
+          name_ar?: string | null
+          opening_qty?: number
+          sku: string
+          source?: string
+          source_url?: string | null
+          updated_at?: string
           updated_by?: string | null
+        }
+        Update: {
+          actual_cost?: number | null
+          avg_selling_price?: number | null
+          brand?: string | null
+          category?: string | null
+          color?: string | null
+          created_at?: string
+          created_by?: string | null
+          default_selling_price?: number | null
           deleted_at?: string | null
+          description?: string | null
+          expected_selling_price?: number | null
+          feature?: string | null
+          gender?: string | null
+          historical_revenue?: number
+          historical_units_sold?: number
+          id?: string
+          image_urls?: string[]
+          is_active?: boolean
+          model?: string | null
+          name?: string
+          name_ar?: string | null
+          opening_qty?: number
+          sku?: string
+          source?: string
+          source_url?: string | null
+          updated_at?: string
+          updated_by?: string | null
         }
         Relationships: []
       }
@@ -442,28 +824,54 @@ export type Database = {
           name: string | null
           product_id: string | null
           purchase_id: string
+          qc_quality: boolean
+          qc_repackage: boolean
+          qc_working: boolean
           qty: number
+          received: boolean
           sku: string | null
+          to_return: boolean
           unit_cost_jod: number
           unit_cost_src: number
-          received: boolean
-          qc_quality: boolean
-          qc_working: boolean
-          qc_repackage: boolean
-          to_return: boolean
         }
         Insert: {
-          purchase_id: string
-          product_id?: string | null
-          sku?: string | null
-          name?: string | null
-          qty?: number
-          unit_cost_src?: number
-          unit_cost_jod?: number
           allocated_overhead?: number
+          created_at?: string
+          id?: string
+          image_url?: string | null
           landed_unit_cost?: number
+          name?: string | null
+          product_id?: string | null
+          purchase_id: string
+          qc_quality?: boolean
+          qc_repackage?: boolean
+          qc_working?: boolean
+          qty?: number
+          received?: boolean
+          sku?: string | null
+          to_return?: boolean
+          unit_cost_jod?: number
+          unit_cost_src?: number
         }
-        Update: { [k: string]: unknown }
+        Update: {
+          allocated_overhead?: number
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          landed_unit_cost?: number
+          name?: string | null
+          product_id?: string | null
+          purchase_id?: string
+          qc_quality?: boolean
+          qc_repackage?: boolean
+          qc_working?: boolean
+          qty?: number
+          received?: boolean
+          sku?: string | null
+          to_return?: boolean
+          unit_cost_jod?: number
+          unit_cost_src?: number
+        }
         Relationships: [
           {
             foreignKeyName: "purchase_items_product_id_fkey"
@@ -495,6 +903,7 @@ export type Database = {
           notes: string | null
           order_date: string
           other_cost: number
+          paid_account_id: string | null
           raw_json: Json | null
           reference: string | null
           shipping_cost: number
@@ -506,23 +915,62 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
-          doc_no?: string | null
-          reference?: string | null
-          source?: string
-          order_date?: string
-          src_currency?: string
-          fx_rate?: number
-          items_total?: number
-          shipping_cost?: number
-          customs_cost?: number
           clearance_cost?: number
-          other_cost?: number
-          total_landed?: number
-          status?: Database["public"]["Enums"]["purchase_status"]
+          created_at?: string
           created_by?: string | null
+          customs_cost?: number
+          deleted_at?: string | null
+          doc_no?: string | null
+          fx_rate?: number
+          id?: string
+          items_total?: number
+          notes?: string | null
+          order_date?: string
+          other_cost?: number
+          paid_account_id?: string | null
+          raw_json?: Json | null
+          reference?: string | null
+          shipping_cost?: number
+          source?: string
+          src_currency?: string
+          status?: Database["public"]["Enums"]["purchase_status"]
+          total_landed?: number
+          updated_at?: string
+          updated_by?: string | null
         }
-        Update: { status?: Database["public"]["Enums"]["purchase_status"] }
-        Relationships: []
+        Update: {
+          clearance_cost?: number
+          created_at?: string
+          created_by?: string | null
+          customs_cost?: number
+          deleted_at?: string | null
+          doc_no?: string | null
+          fx_rate?: number
+          id?: string
+          items_total?: number
+          notes?: string | null
+          order_date?: string
+          other_cost?: number
+          paid_account_id?: string | null
+          raw_json?: Json | null
+          reference?: string | null
+          shipping_cost?: number
+          source?: string
+          src_currency?: string
+          status?: Database["public"]["Enums"]["purchase_status"]
+          total_landed?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchases_paid_account_id_fkey"
+            columns: ["paid_account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       sale_items: {
         Row: {
@@ -538,19 +986,81 @@ export type Database = {
           unit_price: number
         }
         Insert: {
-          sale_id: string
-          product_id?: string | null
+          created_at?: string
           description?: string | null
+          discount?: number
+          id?: string
+          line_total?: number
+          product_id?: string | null
           qty?: number
+          sale_id: string
           unit_cost?: number
           unit_price?: number
-          discount?: number
-          line_total?: number
         }
-        Update: { [k: string]: unknown }
+        Update: {
+          created_at?: string
+          description?: string | null
+          discount?: number
+          id?: string
+          line_total?: number
+          product_id?: string | null
+          qty?: number
+          sale_id?: string
+          unit_cost?: number
+          unit_price?: number
+        }
         Relationships: [
           {
+            foreignKeyName: "sale_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "sale_items_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sale_packaging: {
+        Row: {
+          asset_id: string
+          created_at: string
+          id: string
+          qty: number
+          sale_id: string
+          unit_cost: number
+        }
+        Insert: {
+          asset_id: string
+          created_at?: string
+          id?: string
+          qty?: number
+          sale_id: string
+          unit_cost?: number
+        }
+        Update: {
+          asset_id?: string
+          created_at?: string
+          id?: string
+          qty?: number
+          sale_id?: string
+          unit_cost?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sale_packaging_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "packaging_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sale_packaging_sale_id_fkey"
             columns: ["sale_id"]
             isOneToOne: false
             referencedRelation: "sales"
@@ -567,7 +1077,9 @@ export type Database = {
           deleted_at: string | null
           delivery_billed: number
           delivery_fee: number
+          delivery_vendor_id: string | null
           discount: number
+          fulfillment_stage: number
           gross_profit: number
           gst_amount: number
           gst_rate: number
@@ -575,6 +1087,7 @@ export type Database = {
           notes: string | null
           packaging_cost: number
           payment_status: Database["public"]["Enums"]["payment_status"]
+          return_stage: number
           sale_date: string
           sale_no: string
           sold_by: string | null
@@ -582,32 +1095,66 @@ export type Database = {
           subtotal: number
           total: number
           total_cost: number
-          fulfillment_stage: number
-          return_stage: number
           updated_at: string
           updated_by: string | null
         }
         Insert: {
-          sale_no: string
+          created_at?: string
+          created_by?: string | null
+          currency?: string
           customer_id?: string | null
+          deleted_at?: string | null
+          delivery_billed?: number
+          delivery_fee?: number
+          delivery_vendor_id?: string | null
+          discount?: number
+          fulfillment_stage?: number
+          gross_profit?: number
+          gst_amount?: number
+          gst_rate?: number
+          id?: string
+          notes?: string | null
+          packaging_cost?: number
+          payment_status?: Database["public"]["Enums"]["payment_status"]
+          return_stage?: number
+          sale_date?: string
+          sale_no: string
           sold_by?: string | null
           status?: Database["public"]["Enums"]["sale_status"]
-          payment_status?: Database["public"]["Enums"]["payment_status"]
           subtotal?: number
-          discount?: number
-          delivery_fee?: number
-          delivery_billed?: number
-          gst_rate?: number
-          gst_amount?: number
           total?: number
-          packaging_cost?: number
-          created_by?: string | null
+          total_cost?: number
+          updated_at?: string
+          updated_by?: string | null
         }
         Update: {
-          status?: Database["public"]["Enums"]["sale_status"]
-          payment_status?: Database["public"]["Enums"]["payment_status"]
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          customer_id?: string | null
+          deleted_at?: string | null
+          delivery_billed?: number
+          delivery_fee?: number
+          delivery_vendor_id?: string | null
+          discount?: number
           fulfillment_stage?: number
+          gross_profit?: number
+          gst_amount?: number
+          gst_rate?: number
+          id?: string
+          notes?: string | null
+          packaging_cost?: number
+          payment_status?: Database["public"]["Enums"]["payment_status"]
           return_stage?: number
+          sale_date?: string
+          sale_no?: string
+          sold_by?: string | null
+          status?: Database["public"]["Enums"]["sale_status"]
+          subtotal?: number
+          total?: number
+          total_cost?: number
+          updated_at?: string
+          updated_by?: string | null
         }
         Relationships: [
           {
@@ -617,28 +1164,166 @@ export type Database = {
             referencedRelation: "customers"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "sales_delivery_vendor_id_fkey"
+            columns: ["delivery_vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_sold_by_fkey"
+            columns: ["sold_by"]
+            isOneToOne: false
+            referencedRelation: "partners"
+            referencedColumns: ["id"]
+          },
         ]
+      }
+      vendor_transactions: {
+        Row: {
+          account_id: string | null
+          category: string | null
+          created_at: string
+          created_by: string | null
+          credit: number
+          debit: number
+          id: string
+          note: string | null
+          ref_id: string | null
+          ref_table: string | null
+          txn_date: string
+          vendor_id: string
+        }
+        Insert: {
+          account_id?: string | null
+          category?: string | null
+          created_at?: string
+          created_by?: string | null
+          credit?: number
+          debit?: number
+          id?: string
+          note?: string | null
+          ref_id?: string | null
+          ref_table?: string | null
+          txn_date?: string
+          vendor_id: string
+        }
+        Update: {
+          account_id?: string | null
+          category?: string | null
+          created_at?: string
+          created_by?: string | null
+          credit?: number
+          debit?: number
+          id?: string
+          note?: string | null
+          ref_id?: string | null
+          ref_table?: string | null
+          txn_date?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_transactions_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_transactions_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vendors: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          email: string | null
+          id: string
+          is_active: boolean
+          is_default_delivery: boolean
+          kind: Database["public"]["Enums"]["vendor_kind"]
+          name: string
+          name_ar: string | null
+          notes: string | null
+          opening_balance: number
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          is_default_delivery?: boolean
+          kind?: Database["public"]["Enums"]["vendor_kind"]
+          name: string
+          name_ar?: string | null
+          notes?: string | null
+          opening_balance?: number
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          is_default_delivery?: boolean
+          kind?: Database["public"]["Enums"]["vendor_kind"]
+          name?: string
+          name_ar?: string | null
+          notes?: string | null
+          opening_balance?: number
+          phone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
       }
     }
     Views: { [_ in never]: never }
     Functions: {
       adjust_inventory: {
-        Args: { p_product_id: string; p_new_qty: number; p_note?: string }
+        Args: { p_new_qty: number; p_note?: string; p_product_id: string }
         Returns: undefined
       }
+      assign_delivery_vendor: { Args: { p_sale_id: string; p_vendor_id: string }; Returns: undefined }
       claim_partner_seat: {
         Args: { p_full_name: string; p_name_ar?: string }
-        Returns: unknown
+        Returns: Json
       }
+      close_fiscal_year: { Args: { p_from: string; p_to: string; p_label: string }; Returns: string }
+      is_admin_partner: { Args: never; Returns: boolean }
+      reopen_fiscal_year: { Args: { p_id: string }; Returns: undefined }
+      confirm_dividend_share: { Args: { p_share_id: string }; Returns: undefined }
       confirm_sale: { Args: { p_sale_id: string }; Returns: undefined }
+      declare_dividend: { Args: { p_date: string; p_note: string; p_total: number }; Returns: string }
       default_account_id: { Args: never; Returns: string }
+      default_delivery_vendor: { Args: never; Returns: string }
+      delete_dividend: { Args: { p_id: string }; Returns: undefined }
       finalize_receiving: { Args: { p_purchase_id: string }; Returns: undefined }
       get_financials: { Args: { p_from: string; p_to: string }; Returns: Json }
       is_partner: { Args: never; Returns: boolean }
+      match_bank_line: { Args: { p_line: string; p_txn: string }; Returns: undefined }
       next_doc_no: { Args: { p_type: string }; Returns: string }
+      pack_sale: { Args: { p_items: Json; p_sale_id: string }; Returns: undefined }
+      pay_dividend_share: { Args: { p_account_id: string; p_date: string; p_share_id: string }; Returns: undefined }
+      set_txn_reconciled: { Args: { p_txn: string; p_value: boolean }; Returns: undefined }
+      unmatch_bank_line: { Args: { p_line: string }; Returns: undefined }
       receive_purchase: { Args: { p_purchase_id: string }; Returns: undefined }
-      return_sale: { Args: { p_sale_id: string }; Returns: undefined }
       recompute_packaging_cost: { Args: never; Returns: undefined }
+      return_sale: { Args: { p_sale_id: string }; Returns: undefined }
     }
     Enums: {
       account_type: "cash" | "bank" | "wallet"
@@ -654,6 +1339,7 @@ export type Database = {
         | "cancelled"
         | "returned"
       txn_direction: "in" | "out"
+      vendor_kind: "delivery" | "service" | "supplier" | "other"
     }
     CompositeTypes: { [_ in never]: never }
   }

@@ -1,13 +1,17 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { TrendingUp, ShoppingBag, Boxes, Coins, Landmark, Megaphone, Target, Plus, Loader2 } from "lucide-react";
+import {
+  TrendingUp, ShoppingBag, Boxes, Coins, Landmark, Megaphone, Target, Plus, Loader2,
+  Package, AlertTriangle, Receipt, Truck, ChevronRight, Wallet, Scale, ArrowUpRight,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/provider";
 import { PageHeader } from "@/components/page-header";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -16,85 +20,123 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { formatJOD, round3 } from "@/lib/utils";
+import { cn, formatJOD, round3 } from "@/lib/utils";
+import type { DictKey } from "@/lib/i18n/dictionaries";
 import type { Tables } from "@/types/database.types";
+
+type Fin = {
+  pl: { net_profit: number };
+  gst: { net_due: number };
+  balance_sheet: { cash: number; inventory: number; packaging_inventory: number; courier_receivable: number; vendor_payable?: number; total_equity: number };
+};
 
 function useDashboard() {
   const supabase = createClient();
   return useQuery({
     queryKey: ["dashboard"],
     queryFn: async () => {
+      const today = new Date().toISOString().slice(0, 10);
       const since = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
 
-      const [sales, inventory, recent, accounts, marketing] = await Promise.all([
-        supabase
-          .from("sales")
-          .select("total, gross_profit, status")
-          .gte("sale_date", since)
-          .neq("status", "cancelled")
-          .neq("status", "returned")
-          .is("deleted_at", null),
-        supabase.from("inventory").select("qty_on_hand, avg_unit_cost, products(name, expected_selling_price, default_selling_price)"),
-        supabase
-          .from("sales")
-          .select("sale_no, total, gross_profit, sale_date, status, customers(name)")
-          .is("deleted_at", null)
-          .order("created_at", { ascending: false })
-          .limit(8),
-        supabase.from("accounts").select("opening_balance, is_courier, cash_transactions(direction, amount)").is("deleted_at", null),
+      const [sales, inventory, recent, marketing, toPack, fin] = await Promise.all([
+        supabase.from("sales").select("total, gross_profit").gte("sale_date", since)
+          .neq("status", "cancelled").neq("status", "returned").is("deleted_at", null),
+        supabase.from("inventory").select("qty_on_hand, avg_unit_cost, products(expected_selling_price, default_selling_price)"),
+        supabase.from("sales").select("sale_no, total, gross_profit, sale_date, status, customers(name)")
+          .is("deleted_at", null).order("created_at", { ascending: false }).limit(8),
         supabase.from("cash_transactions").select("amount").eq("direction", "out").in("category", ["marketing", "ads"]).gte("txn_date", since),
+        supabase.from("sales").select("id", { count: "exact", head: true }).eq("status", "confirmed").is("deleted_at", null),
+        supabase.rpc("get_financials", { p_from: "2000-01-01", p_to: today }),
       ]);
 
       const revenue = (sales.data ?? []).reduce((s, r) => s + Number(r.total), 0);
       const profit = (sales.data ?? []).reduce((s, r) => s + Number(r.gross_profit), 0);
       const orders = (sales.data ?? []).length;
-      const stockValue = (inventory.data ?? []).reduce(
-        (s, r) => s + Number(r.qty_on_hand) * Number(r.avg_unit_cost),
-        0,
-      );
       const expectedRevenue = (inventory.data ?? []).reduce((s, r) => {
         const pr = r.products as { expected_selling_price: number | null; default_selling_price: number | null } | null;
-        const exp = pr?.expected_selling_price ?? pr?.default_selling_price;
-        return s + (exp ? Number(r.qty_on_hand) * Number(exp) : 0);
+        const exp = pr?.expected_selling_price ?? pr?.default_selling_price ?? 0;
+        return s + Number(r.qty_on_hand) * Number(exp);
       }, 0);
       const lowStock = (inventory.data ?? []).filter((r) => Number(r.qty_on_hand) <= 2).length;
-
-      const expectedCash = (accounts.data ?? [])
-        .filter((a) => !a.is_courier)
-        .reduce((s, a) => {
-          const net = ((a.cash_transactions as { direction: string; amount: number }[]) ?? []).reduce(
-            (n, x) => n + (x.direction === "in" ? Number(x.amount) : -Number(x.amount)),
-            0,
-          );
-          return s + Number(a.opening_balance) + net;
-        }, 0);
-
       const marketing30 = (marketing.data ?? []).reduce((s, r) => s + Number(r.amount), 0);
       const roas = marketing30 > 0 ? revenue / marketing30 : null;
+      const f = (fin.data ?? null) as Fin | null;
 
       return {
-        revenue, profit, orders, stockValue, lowStock, expectedCash, expectedRevenue,
-        marketing30, roas, recent: recent.data ?? [],
+        revenue, profit, orders, expectedRevenue, lowStock, marketing30, roas,
+        toPack: toPack.count ?? 0,
+        cash: f?.balance_sheet.cash ?? 0,
+        stockValue: f?.balance_sheet.inventory ?? 0,
+        packagingStock: f?.balance_sheet.packaging_inventory ?? 0,
+        gstDue: f?.gst.net_due ?? 0,
+        vendorRecv: f?.balance_sheet.courier_receivable ?? 0,
+        equity: f?.balance_sheet.total_equity ?? 0,
+        recent: recent.data ?? [],
       };
     },
   });
+}
+
+const TONES: Record<string, string> = {
+  primary: "bg-primary/10 text-primary",
+  green: "bg-success/12 text-success",
+  amber: "bg-amber-100 text-amber-700",
+  red: "bg-destructive/10 text-destructive",
+  blue: "bg-sky-100 text-sky-700",
+  slate: "bg-muted text-foreground/70",
+};
+
+function Kpi({ icon: Icon, label, value, sub, tone = "primary", loading }: {
+  icon: React.ElementType; label: string; value?: string; sub?: string; tone?: string; loading?: boolean;
+}) {
+  return (
+    <Card>
+      <CardContent className="p-5">
+        <div className="flex items-center justify-between">
+          <span className={cn("flex size-10 items-center justify-center rounded-lg", TONES[tone])}>
+            <Icon className="size-5" />
+          </span>
+          {sub && <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{sub}</span>}
+        </div>
+        <div className="mt-3 text-sm text-muted-foreground">{label}</div>
+        {loading ? <Skeleton className="mt-1 h-7 w-24" /> : <div className="text-2xl font-bold tracking-tight">{value}</div>}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ActionCard({ href, icon: Icon, label, value, tone, loading, alert }: {
+  href: string; icon: React.ElementType; label: string; value?: string; tone: string; loading?: boolean; alert?: boolean;
+}) {
+  return (
+    <Link href={href} className="group">
+      <Card className={cn("transition hover:border-primary/40 hover:shadow-sm", alert && "border-destructive/30")}>
+        <CardContent className="flex items-center gap-3 p-4">
+          <span className={cn("flex size-10 shrink-0 items-center justify-center rounded-lg", TONES[tone])}>
+            <Icon className="size-5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="text-xs text-muted-foreground">{label}</div>
+            {loading ? <Skeleton className="mt-1 h-5 w-16" /> : <div className="text-lg font-bold tracking-tight">{value}</div>}
+          </div>
+          <ChevronRight className="size-4 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-primary rtl:rotate-180" />
+        </CardContent>
+      </Card>
+    </Link>
+  );
+}
+
+function statusBadge(status: string, t: (k: DictKey) => string) {
+  const variant = status === "cancelled" ? "destructive" : status === "returned" ? "warning" : status === "confirmed" ? "secondary" : "success";
+  const label = status === "returned" ? t("sales.returned") : status === "packed" ? t("sales.packed") : status;
+  return <Badge variant={variant as never}>{label}</Badge>;
 }
 
 export default function DashboardPage() {
   const { t, locale } = useI18n();
   const { data, isLoading } = useDashboard();
   const [expenseOpen, setExpenseOpen] = useState(false);
-
-  const stats = [
-    { key: "dashboard.revenue", icon: TrendingUp, value: data && formatJOD(data.revenue, locale) },
-    { key: "dashboard.profit", icon: Coins, value: data && formatJOD(data.profit, locale) },
-    { key: "dashboard.orders", icon: ShoppingBag, value: data?.orders?.toString() },
-    { key: "dashboard.stockValue", icon: Boxes, value: data && formatJOD(data.stockValue, locale) },
-    { key: "products.expectedRevenue", icon: TrendingUp, value: data && formatJOD(data.expectedRevenue, locale) },
-    { key: "banks.expectedTotal", icon: Landmark, value: data && formatJOD(data.expectedCash, locale) },
-    { key: "dashboard.marketing", icon: Megaphone, value: data && formatJOD(data.marketing30, locale) },
-    { key: "dashboard.roas", icon: Target, value: data ? (data.roas != null ? `${data.roas.toFixed(1)}×` : "—") : undefined },
-  ] as const;
+  const j = (n?: number) => (data ? formatJOD(n ?? 0, locale) : undefined);
 
   return (
     <>
@@ -102,40 +144,60 @@ export default function DashboardPage() {
         title={t("dashboard.title")}
         description={t("app.tagline")}
         action={
-          <Button onClick={() => setExpenseOpen(true)}>
-            <Plus className="size-4" /> {t("dashboard.addExpense")}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" onClick={() => setExpenseOpen(true)}>
+              <Plus className="size-4" /> {t("dashboard.addExpense")}
+            </Button>
+            <Link href="/sell" className={buttonVariants()}>
+              <ShoppingBag className="size-4" /> {t("sales.newSale")}
+            </Link>
+          </div>
         }
       />
 
+      {/* 30-day performance */}
+      <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+        <ArrowUpRight className="size-4" /> {t("dashboard.last30")}
+      </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {stats.map(({ key, icon: Icon, value }) => (
-          <Card key={key}>
-            <CardContent className="flex items-center gap-4 p-5">
-              <div className="flex size-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <Icon className="size-5" />
-              </div>
-              <div className="min-w-0">
-                <div className="text-sm text-muted-foreground">{t(key)}</div>
-                {isLoading ? (
-                  <Skeleton className="mt-1 h-6 w-24" />
-                ) : (
-                  <div className="text-xl font-bold">{value}</div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+        <Kpi icon={TrendingUp} label={t("dashboard.revenue")} value={j(data?.revenue)} sub={t("dashboard.last30short")} tone="primary" loading={isLoading} />
+        <Kpi icon={Coins} label={t("dashboard.profit")} value={j(data?.profit)} sub={t("dashboard.last30short")} tone="green" loading={isLoading} />
+        <Kpi icon={ShoppingBag} label={t("dashboard.orders")} value={data?.orders?.toString()} sub={t("dashboard.last30short")} tone="blue" loading={isLoading} />
+        <Kpi icon={Target} label={t("dashboard.roas")} value={data ? (data.roas != null ? `${data.roas.toFixed(1)}×` : "—") : undefined} sub={t("dashboard.marketing")} tone="amber" loading={isLoading} />
       </div>
 
+      {/* Needs attention */}
+      <div className="mb-2 mt-6 flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+        <AlertTriangle className="size-4" /> {t("dashboard.attention")}
+      </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <ActionCard href="/sales" icon={Package} label={t("dashboard.toPack")} value={data?.toPack?.toString()} tone={data && data.toPack > 0 ? "amber" : "slate"} loading={isLoading} alert={!!data && data.toPack > 0} />
+        <ActionCard href="/products" icon={AlertTriangle} label={t("dashboard.lowStock")} value={data?.lowStock?.toString()} tone={data && data.lowStock > 0 ? "red" : "slate"} loading={isLoading} alert={!!data && data.lowStock > 0} />
+        <ActionCard href="/vendors" icon={Truck} label={t("dashboard.codToCollect")} value={j(data?.vendorRecv)} tone="green" loading={isLoading} />
+        <ActionCard href="/reports" icon={Receipt} label={t("dashboard.gstDue")} value={j(data?.gstDue)} tone="blue" loading={isLoading} />
+      </div>
+
+      {/* Position */}
+      <div className="mb-2 mt-6 flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+        <Scale className="size-4" /> {t("dashboard.position")}
+      </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Kpi icon={Wallet} label={t("banks.expectedTotal")} value={j(data?.cash)} tone="green" loading={isLoading} />
+        <Kpi icon={Boxes} label={t("dashboard.stockValue")} value={j(data?.stockValue)} tone="primary" loading={isLoading} />
+        <Kpi icon={Megaphone} label={t("dashboard.marketing")} value={j(data?.marketing30)} sub={t("dashboard.last30short")} tone="amber" loading={isLoading} />
+        <Kpi icon={Landmark} label={t("reports.totalEquity")} value={j(data?.equity)} tone="slate" loading={isLoading} />
+      </div>
+
+      {/* Recent sales */}
       <Card className="mt-6">
         <CardContent className="p-0">
-          <div className="border-b p-4 font-semibold">{t("dashboard.recentSales")}</div>
+          <div className="flex items-center justify-between border-b p-4">
+            <span className="font-semibold">{t("dashboard.recentSales")}</span>
+            <Link href="/sales" className="text-sm text-primary hover:underline">{t("common.viewAll")}</Link>
+          </div>
           {isLoading ? (
             <div className="space-y-2 p-4">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-10 w-full" />
-              ))}
+              {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
             </div>
           ) : data && data.recent.length > 0 ? (
             <Table>
@@ -143,10 +205,10 @@ export default function DashboardPage() {
                 <TableRow>
                   <TableHead>{t("sales.no")}</TableHead>
                   <TableHead>{t("sell.customer")}</TableHead>
-                  <TableHead>{t("common.date")}</TableHead>
+                  <TableHead className="hidden sm:table-cell">{t("common.date")}</TableHead>
                   <TableHead>{t("common.status")}</TableHead>
                   <TableHead className="text-end">{t("common.total")}</TableHead>
-                  <TableHead className="text-end">{t("common.profit")}</TableHead>
+                  <TableHead className="hidden text-end sm:table-cell">{t("common.profit")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -154,14 +216,10 @@ export default function DashboardPage() {
                   <TableRow key={r.sale_no}>
                     <TableCell className="font-medium">{r.sale_no}</TableCell>
                     <TableCell>{(r.customers as { name: string } | null)?.name ?? "—"}</TableCell>
-                    <TableCell className="text-muted-foreground">{r.sale_date}</TableCell>
-                    <TableCell>
-                      <Badge variant={r.status === "cancelled" ? "destructive" : r.status === "returned" ? "warning" : "success"}>
-                        {r.status}
-                      </Badge>
-                    </TableCell>
+                    <TableCell className="hidden text-muted-foreground sm:table-cell">{r.sale_date}</TableCell>
+                    <TableCell>{statusBadge(r.status, t)}</TableCell>
                     <TableCell className="text-end font-medium">{formatJOD(r.total, locale)}</TableCell>
-                    <TableCell className="text-end text-success">{formatJOD(r.gross_profit, locale)}</TableCell>
+                    <TableCell className="hidden text-end text-success sm:table-cell">{formatJOD(r.gross_profit, locale)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -193,8 +251,6 @@ function ExpenseDialog({ open, onClose }: { open: boolean; onClose: () => void }
   });
 
   const [form, setForm] = useState({ amount: "", category: "marketing", account_id: "", note: "", date: new Date().toISOString().slice(0, 10) });
-
-  // default the account to the first (default) account
   const accountId = form.account_id || accounts?.[0]?.id || "";
 
   const add = useMutation({

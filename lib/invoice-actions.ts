@@ -64,7 +64,18 @@ export async function ensureInvoiceForSale(saleId: string): Promise<InvoiceBundl
     })
     .select("*")
     .single();
-  if (invErr) throw invErr;
+  if (invErr) {
+    // A concurrent request may have created the invoice first (unique index on
+    // sale_id). Fall back to the existing one instead of erroring out.
+    const { data: again } = await supabase
+      .from("invoices")
+      .select("*")
+      .eq("sale_id", saleId)
+      .is("deleted_at", null)
+      .maybeSingle();
+    if (again) return { invoice: again, items, company, customer };
+    throw invErr;
+  }
 
   return { invoice, items, company, customer };
 }
