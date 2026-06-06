@@ -508,6 +508,7 @@ export const dictionaries = {
     "sales.returned": "Returned",
     "sales.packed": "Packed",
     "sales.saved": "Sale updated",
+    "sales.searchPlaceholder": "Search by customer, product, SKU, color, or amount",
     "sales.confirmReturn": "Return this sale? Stock goes back and a return-delivery fee is booked.",
   },
   ar: {
@@ -1013,6 +1014,7 @@ export const dictionaries = {
     "sales.returned": "مُرجَع",
     "sales.packed": "مُغلَّف",
     "sales.saved": "تم تحديث البيع",
+    "sales.searchPlaceholder": "ابحث حسب العميل، المنتج، SKU، اللون، أو المبلغ",
     "sales.confirmReturn": "إرجاع هذه العملية؟ تعود البضاعة للمخزون وتُحتسب أجرة توصيل الإرجاع.",
   },
 } as const;

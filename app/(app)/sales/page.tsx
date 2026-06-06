@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import Link from "next/link";
-import { FileText, Loader2, Receipt, Undo2, Plus, ListChecks, CheckCircle2, Truck, ArrowLeft, Pencil, Trash2 } from "lucide-react";
+import { FileText, Loader2, Receipt, Undo2, Plus, ListChecks, CheckCircle2, Truck, ArrowLeft, Pencil, Trash2, Search } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/provider";
 import { useCustomers } from "@/lib/hooks";
@@ -30,6 +30,10 @@ import {
 } from "@/components/ui/table";
 import { formatJOD, round3 } from "@/lib/utils";
 
+type SaleItemMini = {
+  description: string | null;
+  products: { name: string | null; sku: string | null; color: string | null } | null;
+};
 type SaleRow = {
   id: string;
   sale_no: string;
@@ -41,6 +45,7 @@ type SaleRow = {
   return_stage: number;
   delivery_vendor_id: string | null;
   customers: { name: string } | null;
+  sale_items: SaleItemMini[];
 };
 
 export default function SalesPage() {
@@ -51,13 +56,14 @@ export default function SalesPage() {
   const [fulSale, setFulSale] = useState<SaleRow | null>(null);
   const [retSale, setRetSale] = useState<SaleRow | null>(null);
   const [editSale, setEditSale] = useState<SaleRow | null>(null);
+  const [search, setSearch] = useState("");
 
   const { data, isLoading } = useQuery({
     queryKey: ["sales-list"],
     queryFn: async (): Promise<SaleRow[]> => {
       const { data, error } = await supabase
         .from("sales")
-        .select("id, sale_no, sale_date, status, total, gross_profit, fulfillment_stage, return_stage, delivery_vendor_id, customers(name)")
+        .select("id, sale_no, sale_date, status, total, gross_profit, fulfillment_stage, return_stage, delivery_vendor_id, customers(name), sale_items(description, products(name, sku, color))")
         .is("deleted_at", null)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -87,6 +93,21 @@ export default function SalesPage() {
     }
   }
 
+  const q = search.trim().toLowerCase();
+  const filtered = !q ? (data ?? []) : (data ?? []).filter((s) => {
+    if (s.sale_no.toLowerCase().includes(q)) return true;
+    if ((s.customers?.name ?? "").toLowerCase().includes(q)) return true;
+    if (Number(s.total).toString().includes(q)) return true;
+    if (s.sale_date.includes(q)) return true;
+    for (const it of s.sale_items ?? []) {
+      if ((it.description ?? "").toLowerCase().includes(q)) return true;
+      if ((it.products?.name ?? "").toLowerCase().includes(q)) return true;
+      if ((it.products?.sku ?? "").toLowerCase().includes(q)) return true;
+      if ((it.products?.color ?? "").toLowerCase().includes(q)) return true;
+    }
+    return false;
+  });
+
   return (
     <>
       <PageHeader
@@ -97,6 +118,15 @@ export default function SalesPage() {
           </Link>
         }
       />
+      <div className="relative mb-4 max-w-md">
+        <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          className="ps-9"
+          placeholder={t("sales.searchPlaceholder")}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
       <Card>
         <CardContent className="p-0">
           {isLoading ? (
@@ -105,7 +135,7 @@ export default function SalesPage() {
                 <Skeleton key={i} className="h-12 w-full" />
               ))}
             </div>
-          ) : data && data.length > 0 ? (
+          ) : filtered.length > 0 ? (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -119,7 +149,7 @@ export default function SalesPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data.map((s) => (
+                {filtered.map((s) => (
                   <TableRow key={s.id}>
                     <TableCell className="font-medium">{s.sale_no}</TableCell>
                     <TableCell>{s.customers?.name ?? "—"}</TableCell>
