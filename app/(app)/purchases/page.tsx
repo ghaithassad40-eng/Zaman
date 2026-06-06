@@ -46,16 +46,17 @@ export default function PurchasesPage() {
   const supabase = createClient();
   const qc = useQueryClient();
 
+  type PurchaseRow = Tables<"purchases"> & { vendors: { name: string; name_ar: string | null } | null };
   const { data, isLoading } = useQuery({
     queryKey: ["purchases"],
-    queryFn: async (): Promise<Tables<"purchases">[]> => {
+    queryFn: async (): Promise<PurchaseRow[]> => {
       const { data, error } = await supabase
         .from("purchases")
-        .select("*")
+        .select("*, vendors(name, name_ar)")
         .is("deleted_at", null)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []) as unknown as PurchaseRow[];
     },
   });
 
@@ -160,6 +161,7 @@ export default function PurchasesPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>{t("purchases.reference")}</TableHead>
+                  <TableHead>{t("vendors.title")}</TableHead>
                   <TableHead>{t("common.date")}</TableHead>
                   <TableHead className="text-end">{t("purchases.landed")}</TableHead>
                   <TableHead>{t("common.status")}</TableHead>
@@ -169,7 +171,17 @@ export default function PurchasesPage() {
               <TableBody>
                 {data.map((p) => (
                   <TableRow key={p.id}>
-                    <TableCell className="font-medium">{p.reference || p.doc_no || "—"}</TableCell>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-1.5">
+                        <span>{p.reference || p.doc_no || "—"}</span>
+                        {p.is_asset && (
+                          <Badge variant="secondary" className="text-[10px]">{t("purchases.asset")}</Badge>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {p.vendors ? (locale === "ar" && p.vendors.name_ar ? p.vendors.name_ar : p.vendors.name) : "—"}
+                    </TableCell>
                     <TableCell className="text-muted-foreground">{p.order_date}</TableCell>
                     <TableCell className="text-end font-medium">
                       {formatJOD(p.total_landed, locale)}

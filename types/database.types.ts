@@ -894,14 +894,18 @@ export type Database = {
       }
       purchases: {
         Row: {
+          asset_name: string | null
           clearance_cost: number
           created_at: string
           created_by: string | null
           customs_cost: number
           deleted_at: string | null
+          depreciation_start_date: string | null
+          depreciation_years: number | null
           doc_no: string | null
           fx_rate: number
           id: string
+          is_asset: boolean
           items_total: number
           notes: string | null
           order_date: string
@@ -909,6 +913,7 @@ export type Database = {
           paid_account_id: string | null
           raw_json: Json | null
           reference: string | null
+          salvage_value: number
           shipping_cost: number
           source: string
           src_currency: string
@@ -916,16 +921,21 @@ export type Database = {
           total_landed: number
           updated_at: string
           updated_by: string | null
+          vendor_id: string | null
         }
         Insert: {
+          asset_name?: string | null
           clearance_cost?: number
           created_at?: string
           created_by?: string | null
           customs_cost?: number
           deleted_at?: string | null
+          depreciation_start_date?: string | null
+          depreciation_years?: number | null
           doc_no?: string | null
           fx_rate?: number
           id?: string
+          is_asset?: boolean
           items_total?: number
           notes?: string | null
           order_date?: string
@@ -933,6 +943,7 @@ export type Database = {
           paid_account_id?: string | null
           raw_json?: Json | null
           reference?: string | null
+          salvage_value?: number
           shipping_cost?: number
           source?: string
           src_currency?: string
@@ -940,16 +951,21 @@ export type Database = {
           total_landed?: number
           updated_at?: string
           updated_by?: string | null
+          vendor_id?: string | null
         }
         Update: {
+          asset_name?: string | null
           clearance_cost?: number
           created_at?: string
           created_by?: string | null
           customs_cost?: number
           deleted_at?: string | null
+          depreciation_start_date?: string | null
+          depreciation_years?: number | null
           doc_no?: string | null
           fx_rate?: number
           id?: string
+          is_asset?: boolean
           items_total?: number
           notes?: string | null
           order_date?: string
@@ -957,6 +973,7 @@ export type Database = {
           paid_account_id?: string | null
           raw_json?: Json | null
           reference?: string | null
+          salvage_value?: number
           shipping_cost?: number
           source?: string
           src_currency?: string
@@ -964,6 +981,7 @@ export type Database = {
           total_landed?: number
           updated_at?: string
           updated_by?: string | null
+          vendor_id?: string | null
         }
         Relationships: [
           {
@@ -971,6 +989,13 @@ export type Database = {
             columns: ["paid_account_id"]
             isOneToOne: false
             referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchases_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
             referencedColumns: ["id"]
           },
         ]

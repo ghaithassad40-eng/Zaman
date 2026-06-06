@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatJOD, round3, num3 } from "@/lib/utils";
 
 type Line = {
@@ -40,16 +41,21 @@ export default function NewPurchasePage() {
     queryKey: ["accounts-pay"],
     queryFn: async () => {
       const { data } = await supabase
-        .from("accounts")
-        .select("id, name")
-        .eq("is_courier", false)
-        .is("deleted_at", null)
-        .order("created_at");
+        .from("accounts").select("id, name").eq("is_courier", false).is("deleted_at", null).order("created_at");
+      return data ?? [];
+    },
+  });
+  const { data: vendors } = useQuery({
+    queryKey: ["vendors-pay"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("vendors").select("id, name, name_ar").is("deleted_at", null).eq("is_active", true).order("name");
       return data ?? [];
     },
   });
 
   const [paidAccount, setPaidAccount] = useState("");
+  const [vendorId, setVendorId] = useState("");
   const [reference, setReference] = useState("");
   const [orderDate, setOrderDate] = useState(new Date().toISOString().slice(0, 10));
   const [srcCurrency, setSrcCurrency] = useState("USD");
@@ -59,6 +65,13 @@ export default function NewPurchasePage() {
   const [clearance, setClearance] = useState("0");
   const [other, setOther] = useState("0");
   const [lines, setLines] = useState<Line[]>([emptyLine()]);
+  // Asset tracking
+  const [isAsset, setIsAsset] = useState(false);
+  const [assetDialogOpen, setAssetDialogOpen] = useState(false);
+  const [assetName, setAssetName] = useState("");
+  const [depYears, setDepYears] = useState("5");
+  const [depStartDate, setDepStartDate] = useState(new Date().toISOString().slice(0, 10));
+  const [salvageValue, setSalvageValue] = useState("0");
 
   const fx = Number(fxRate) || 0;
   const overhead = round3(
@@ -114,6 +127,12 @@ export default function NewPurchasePage() {
           total_landed: computed.totalLanded,
           status: "ordered",
           paid_account_id: paidAccount || null,
+          vendor_id: vendorId || null,
+          is_asset: isAsset,
+          asset_name: isAsset ? (assetName.trim() || reference.trim() || null) : null,
+          depreciation_years: isAsset ? (Number(depYears) || null) : null,
+          depreciation_start_date: isAsset ? depStartDate : null,
+          salvage_value: isAsset ? round3(Number(salvageValue) || 0) : 0,
           created_by: uid,
         })
         .select("id")
@@ -310,6 +329,16 @@ export default function NewPurchasePage() {
             </div>
 
             <div className="space-y-1 border-t pt-3">
+              <Label className="text-xs">{t("vendors.title")}</Label>
+              <Select value={vendorId} onChange={(e) => setVendorId(e.target.value)}>
+                <option value="">—</option>
+                {(vendors ?? []).map((v) => (
+                  <option key={v.id} value={v.id}>{locale === "ar" && v.name_ar ? v.name_ar : v.name}</option>
+                ))}
+              </Select>
+            </div>
+
+            <div className="space-y-1 border-t pt-3">
               <Label className="text-xs">{t("purchases.payment")}</Label>
               <Select value={paidAccount} onChange={(e) => setPaidAccount(e.target.value)}>
                 <option value="">{t("purchases.unpaid")}</option>
@@ -318,6 +347,34 @@ export default function NewPurchasePage() {
                 ))}
               </Select>
               {paidAccount && <p className="text-xs text-muted-foreground">{t("purchases.paidNote")}</p>}
+            </div>
+
+            <div className="space-y-1 border-t pt-3">
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <input
+                  type="checkbox"
+                  className="size-4 accent-[var(--primary)]"
+                  checked={isAsset}
+                  onChange={(e) => {
+                    setIsAsset(e.target.checked);
+                    if (e.target.checked) setAssetDialogOpen(true);
+                  }}
+                />
+                {t("purchases.isAsset")}
+              </label>
+              {isAsset && (
+                <div className="mt-1 rounded-md border bg-muted/30 p-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">{assetName || reference || t("purchases.asset")}</span>
+                    <button type="button" className="text-primary hover:underline" onClick={() => setAssetDialogOpen(true)}>
+                      {t("common.edit")}
+                    </button>
+                  </div>
+                  <div className="mt-0.5 text-muted-foreground">
+                    {depYears} {t("purchases.years")} · {t("purchases.depStartShort")} {depStartDate}
+                  </div>
+                </div>
+              )}
             </div>
 
             <Button className="w-full" disabled={save.isPending} onClick={() => save.mutate()}>
@@ -330,6 +387,66 @@ export default function NewPurchasePage() {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={assetDialogOpen} onOpenChange={(o) => !o && setAssetDialogOpen(false)}>
+        <DialogContent onClose={() => setAssetDialogOpen(false)}>
+          <DialogHeader>
+            <DialogTitle>{t("purchases.assetDetails")}</DialogTitle>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => { e.preventDefault(); setAssetDialogOpen(false); }}
+            className="grid grid-cols-2 gap-4"
+          >
+            <div className="col-span-2 space-y-1.5">
+              <Label>{t("purchases.assetName")}</Label>
+              <Input value={assetName} onChange={(e) => setAssetName(e.target.value)} placeholder={reference || t("purchases.asset")} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t("purchases.depYears")} *</Label>
+              <Input required type="number" step="0.5" min={0.5} dir="ltr" value={depYears} onChange={(e) => setDepYears(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t("purchases.depStart")} *</Label>
+              <Input required type="date" dir="ltr" value={depStartDate} onChange={(e) => setDepStartDate(e.target.value)} />
+            </div>
+            <div className="col-span-2 space-y-1.5">
+              <Label>{t("purchases.salvageValue")} (JOD)</Label>
+              <Input type="number" step="0.001" dir="ltr" value={salvageValue} onChange={(e) => setSalvageValue(e.target.value)} />
+              <p className="text-xs text-muted-foreground">{t("purchases.salvageHint")}</p>
+            </div>
+            <div className="col-span-2 rounded-md bg-muted/40 p-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">{t("purchases.monthlyDep")}</span>
+                <span className="font-medium">
+                  {formatJOD(
+                    Number(depYears) > 0
+                      ? round3((computed.totalLanded - (Number(salvageValue) || 0)) / (Number(depYears) * 12))
+                      : 0,
+                    locale,
+                  )}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">{t("purchases.annualDep")}</span>
+                <span className="font-medium">
+                  {formatJOD(
+                    Number(depYears) > 0
+                      ? round3((computed.totalLanded - (Number(salvageValue) || 0)) / Number(depYears))
+                      : 0,
+                    locale,
+                  )}
+                </span>
+              </div>
+            </div>
+            <div className="col-span-2 flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => { setAssetDialogOpen(false); setIsAsset(false); }}>
+                {t("common.cancel")}
+              </Button>
+              <Button type="submit">{t("common.save")}</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
