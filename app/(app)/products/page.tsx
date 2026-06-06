@@ -192,7 +192,8 @@ export default function ProductsPage() {
       if (invErr) { errors.push(`${r.sku}: ${invErr.message}`); continue; }
 
       // Convert historical sold qty into a real sale dated 2026-01-01 so it
-      // flows through Revenue, Profit, and reports like a normal sale.
+      // flows through Revenue, Profit, P&L, and the auditor's report.
+      // Also posts a cash inflow so the balance sheet reflects the money.
       if (sold > 0) {
         const unitPrice = avgSell || sellingPrice || expectedPrice || 0;
         if (unitPrice > 0) {
@@ -200,7 +201,7 @@ export default function ProductsPage() {
           const totalCost = round3(sold * actualCost);
           const gp = round3(subtotal - totalCost);
           const { data: saleNo } = await supabase.rpc("next_doc_no", { p_type: "sale" });
-          await supabase.from("sales").insert({
+          const { data: s } = await supabase.from("sales").insert({
             sale_no: saleNo as string,
             sale_date: "2026-01-01",
             customer_id: null,
@@ -212,13 +213,28 @@ export default function ProductsPage() {
             fulfillment_stage: 6,
             notes: `Historical (imported) — ${r.sku}`,
             created_by: userData.user?.id,
-          }).select("id").single().then(async ({ data: s }) => {
-            if (!s) return;
+          }).select("id").single();
+          if (s) {
             await supabase.from("sale_items").insert({
               sale_id: s.id, product_id: prod.id, description: derivedName,
               qty: sold, unit_price: unitPrice, line_total: subtotal, unit_cost: actualCost,
             });
-          });
+            // Post the cash inflow to the default account so balance sheet shows the money.
+            const { data: acc } = await supabase.rpc("default_account_id");
+            if (acc) {
+              await supabase.from("cash_transactions").insert({
+                account_id: acc as string,
+                txn_date: "2026-01-01",
+                direction: "in",
+                amount: subtotal,
+                category: "sale",
+                ref_table: "sales",
+                ref_id: s.id,
+                note: `${saleNo} (historical)`,
+                created_by: userData.user?.id,
+              });
+            }
+          }
         }
       }
       created++;
