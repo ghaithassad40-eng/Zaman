@@ -889,6 +889,7 @@ function ProductDialog({
                 />
               </label>
             </div>
+            <ImageUrlAdder onAdd={(url) => setExistingImages((p) => (p.includes(url) ? p : [...p, url]))} />
           </div>
 
           {isEdit && (
@@ -908,5 +909,72 @@ function ProductDialog({
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Paste an image URL and add it to the product without uploading. The URL
+ *  is validated to look like an image and rendered as a preview thumbnail. */
+function ImageUrlAdder({ onAdd }: { onAdd: (url: string) => void }) {
+  const { t } = useI18n();
+  const [url, setUrl] = useState("");
+  const [preview, setPreview] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  function validate(u: string): string | null {
+    if (!u) return null;
+    try {
+      const parsed = new URL(u);
+      if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return t("products.imgUrlBadProtocol");
+      return null;
+    } catch {
+      return t("products.imgUrlBad");
+    }
+  }
+
+  function tryPreview(u: string) {
+    const err = validate(u);
+    setError(err);
+    setPreview(err ? null : u);
+  }
+
+  function add() {
+    const u = url.trim();
+    const err = validate(u);
+    if (err || !u) { setError(err); return; }
+    onAdd(u);
+    setUrl("");
+    setPreview(null);
+    setError(null);
+  }
+
+  return (
+    <div className="mt-2 space-y-1.5 rounded-md border border-dashed bg-muted/30 p-2">
+      <div className="flex gap-2">
+        <Input
+          dir="ltr"
+          value={url}
+          onChange={(e) => { setUrl(e.target.value); tryPreview(e.target.value.trim()); }}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }}
+          placeholder="https://example.com/watch.jpg"
+        />
+        <Button type="button" variant="outline" size="sm" onClick={add} disabled={!preview}>
+          <Plus className="size-4" /> {t("products.addImgUrl")}
+        </Button>
+      </div>
+      {preview && (
+        <div className="flex items-center gap-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={preview}
+            alt=""
+            className="size-16 rounded-md border bg-muted object-cover"
+            onError={() => setError(t("products.imgUrlLoadFail"))}
+            onLoad={() => setError(null)}
+          />
+          <span className="text-xs text-muted-foreground">{t("products.imgUrlPreview")}</span>
+        </div>
+      )}
+      {error && <p className="text-xs text-destructive">{error}</p>}
+    </div>
   );
 }
