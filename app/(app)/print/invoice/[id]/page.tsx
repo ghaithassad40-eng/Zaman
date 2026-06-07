@@ -87,17 +87,19 @@ export default function PrintInvoicePage({ params }: { params: Promise<{ id: str
           flex-direction: column;
           overflow: hidden;
         }
-        /* Big diagonal-ish brand watermark across the lower middle of the page. */
+        /* Big brand watermark across the lower middle of the page.
+           Prefers /logo.png (real artwork) and falls back to the inline SVG
+           so a user just drops their PNG into /public/logo.png to switch. */
         .watermark {
           position: absolute;
           left: 5%; right: 5%;
-          top: 38%;
-          height: 35%;
-          background-image: url('/brand-watermark.svg');
+          top: 35%;
+          height: 40%;
+          background-image: url('/logo.png'), url('/brand-watermark.svg');
           background-repeat: no-repeat;
           background-position: center;
           background-size: contain;
-          opacity: 0.12;
+          opacity: 0.13;
           pointer-events: none;
           z-index: 0;
         }

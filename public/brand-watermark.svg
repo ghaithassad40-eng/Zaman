@@ -1,13 +1,36 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 120" width="360" height="120" fill="none">
-  <!-- Watch icon -->
-  <g transform="translate(8,30)" stroke="#9a7426" fill="#9a7426">
-    <rect x="26" y="0" width="8" height="7" rx="1.5"/>
-    <rect x="26" y="53" width="8" height="7" rx="1.5"/>
-    <circle cx="30" cy="30" r="20.5" stroke-width="3" fill="none"/>
-    <path d="M30 18v12l8 5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 360" width="320" height="360">
+  <g fill="none" stroke="#9a7426" stroke-width="3">
+    <!-- Watch case (round) -->
+    <circle cx="160" cy="100" r="78"/>
+
+    <!-- Lugs / strap connectors top + bottom -->
+    <rect x="148" y="14" width="10" height="14" rx="2" fill="#9a7426"/>
+    <rect x="162" y="14" width="10" height="14" rx="2" fill="#9a7426"/>
+    <rect x="148" y="172" width="10" height="14" rx="2" fill="#9a7426"/>
+    <rect x="162" y="172" width="10" height="14" rx="2" fill="#9a7426"/>
+
+    <!-- Crown (right side) -->
+    <rect x="238" y="94" width="8" height="12" rx="1.5" fill="#9a7426"/>
+
+    <!-- Hour ticks (rough) -->
+    <line x1="160" y1="32" x2="160" y2="40"/>
+    <line x1="160" y1="160" x2="160" y2="168"/>
+    <line x1="88" y1="100" x2="96" y2="100"/>
+    <line x1="224" y1="100" x2="232" y2="100"/>
+
+    <!-- Hands -->
+    <line x1="160" y1="100" x2="160" y2="58" stroke-linecap="round"/>
+    <line x1="160" y1="100" x2="196" y2="120" stroke-linecap="round"/>
+    <circle cx="160" cy="100" r="3" fill="#9a7426" stroke="none"/>
   </g>
-  <!-- Wordmark "ZAMAN" -->
-  <text x="80" y="62" font-family="Inter, Arial, sans-serif" font-weight="800" font-size="42" letter-spacing="6" fill="#9a7426">ZAMAN</text>
-  <!-- Arabic "زمن" -->
-  <text x="80" y="98" font-family="Cairo, 'Segoe UI', sans-serif" font-weight="700" font-size="28" fill="#9a7426">زمن</text>
+
+  <!-- Roman numerals XII and VI -->
+  <text x="160" y="60" font-family="'Times New Roman', Georgia, serif" font-weight="700" font-size="18" fill="#9a7426" text-anchor="middle">XII</text>
+  <text x="160" y="148" font-family="'Times New Roman', Georgia, serif" font-weight="700" font-size="18" fill="#9a7426" text-anchor="middle">VI</text>
+
+  <!-- ZAMAN wordmark -->
+  <text x="160" y="248" font-family="'Times New Roman', Georgia, serif" font-weight="700" font-size="56" letter-spacing="2" fill="#9a7426" text-anchor="middle">ZAMAN</text>
+
+  <!-- Arabic زمن -->
+  <text x="160" y="316" font-family="'Amiri', 'Cairo', 'Times New Roman', serif" font-weight="700" font-size="48" fill="#9a7426" text-anchor="middle">زمن</text>
 </svg>
