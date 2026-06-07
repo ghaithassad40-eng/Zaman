@@ -190,6 +190,14 @@ export default function ProductsPage() {
         brand: r.brand, model: r.model, color: r.color, feature: r.feature, gender: r.gender, name: r.name,
       });
       if (!r.sku || !derivedName) { errors.push("Row missing SKU or product details (brand/model/…)"); continue; }
+      // Skip non-watch SKUs: `sj` = Shein watch (Jewelry), other prefixes
+      // (`sl` sleeve, `st` sticker, `pkg`, `eq`, etc.) are packaging assets
+      // and shouldn't be imported as sellable products.
+      const skuLower = r.sku.trim().toLowerCase();
+      if (!skuLower.startsWith("sj") && !skuLower.startsWith("sm") && !skuLower.startsWith("sw")) {
+        errors.push(`${r.sku}: SKU prefix doesn't look like a watch (sj/sm/sw) — skipped. If this is packaging, add it via /assets.`);
+        continue;
+      }
       const opening = Math.max(0, Math.round(numOr(r.opening_qty)));
       const sold = Math.max(0, Math.round(numOr(r.sold_qty)));
       const actualCost = numOr(r.actual_cost);
