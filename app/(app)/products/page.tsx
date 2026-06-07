@@ -101,19 +101,22 @@ function useProducts() {
           )
           .is("deleted_at", null)
           .order("created_at", { ascending: false }),
-        // Sales aggregates per product — source of truth for "Sold Qty" and "Avg Selling Price".
+        // Sales aggregates per product — source of truth for Sold Qty + Avg Selling Price.
+        // Embed parent sale and filter in JS (PostgREST embedded-resource filters
+        // can silently return nothing on inner joins, leaving Sold Qty stuck at 0).
         supabase
           .from("sale_items")
-          .select("product_id, qty, line_total, sales!inner(status,deleted_at)")
-          .is("sales.deleted_at", null)
-          .not("sales.status", "in", "(cancelled,returned)"),
+          .select("product_id, qty, line_total, sales(status, deleted_at)")
+          .not("product_id", "is", null),
       ]);
       if (prodRes.error) throw prodRes.error;
 
-      // Aggregate per product.
       const agg = new Map<string, { qty: number; revenue: number }>();
-      for (const r of (salesAggRes.data ?? []) as { product_id: string | null; qty: number; line_total: number }[]) {
-        if (!r.product_id) continue;
+      type Row = { product_id: string | null; qty: number; line_total: number; sales: { status: string; deleted_at: string | null } | null };
+      for (const r of (salesAggRes.data ?? []) as Row[]) {
+        if (!r.product_id || !r.sales) continue;
+        if (r.sales.deleted_at) continue;
+        if (r.sales.status === "cancelled" || r.sales.status === "returned") continue;
         const cur = agg.get(r.product_id) ?? { qty: 0, revenue: 0 };
         cur.qty += Number(r.qty);
         cur.revenue += Number(r.line_total);
