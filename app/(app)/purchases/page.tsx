@@ -1,9 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, PackageOpen, PackageCheck, Loader2 } from "lucide-react";
+import { Plus, PackageOpen, PackageCheck, Loader2, Pencil, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/provider";
 import { PageHeader } from "@/components/page-header";
@@ -11,6 +12,15 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -41,12 +51,16 @@ const PUR_EXAMPLE = [
   { sku: "st2409876543", name: "Leather strap", qty: 10, unit_cost_src: 1.5, reference: "", currency: "", fx_rate: "", shipping: "", customs: "", clearance: "" },
 ];
 
+type PurchaseRow = Tables<"purchases"> & { vendors: { name: string; name_ar: string | null } | null };
+
 export default function PurchasesPage() {
   const { t, locale } = useI18n();
   const supabase = createClient();
   const qc = useQueryClient();
 
-  type PurchaseRow = Tables<"purchases"> & { vendors: { name: string; name_ar: string | null } | null };
+  const [editRow, setEditRow] = useState<PurchaseRow | null>(null);
+  const [delBusy, setDelBusy] = useState<string | null>(null);
+
   const { data, isLoading } = useQuery({
     queryKey: ["purchases"],
     queryFn: async (): Promise<PurchaseRow[]> => {
@@ -71,6 +85,29 @@ export default function PurchasesPage() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  async function deletePurchase(p: PurchaseRow) {
+    const isReceived = p.status === "received";
+    const msg = isReceived ? t("purchases.deleteReceivedConfirm") : t("purchases.deleteConfirm");
+    if (!window.confirm(msg)) return;
+    setDelBusy(p.id);
+    try {
+      // Reverse inventory + cash impact first (safe for any status).
+      const { error: rErr } = await supabase.rpc("reverse_purchase", { p_purchase_id: p.id });
+      if (rErr) throw rErr;
+      const { error } = await supabase
+        .from("purchases")
+        .update({ deleted_at: new Date().toISOString() })
+        .eq("id", p.id);
+      if (error) throw error;
+      toast.success(t("purchases.deleted"));
+      qc.invalidateQueries();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setDelBusy(null);
+    }
+  }
 
   async function importPurchase(rows: Record<string, string>[]) {
     const items = rows.filter((r) => r.sku && r.name && numOr(r.qty) > 0);
@@ -192,11 +229,30 @@ export default function PurchasesPage() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-end">
-                      {p.status !== "received" && (
-                        <Link href={`/purchases/${p.id}/receive`} className={buttonVariants({ variant: "outline", size: "sm" })}>
-                          <PackageCheck className="size-4" /> {t("purchases.receive")}
-                        </Link>
-                      )}
+                      <div className="flex justify-end gap-1">
+                        {p.status !== "received" && (
+                          <Link href={`/purchases/${p.id}/receive`} className={buttonVariants({ variant: "outline", size: "sm" })}>
+                            <PackageCheck className="size-4" /> {t("purchases.receive")}
+                          </Link>
+                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setEditRow(p)}
+                          title={t("common.edit")}
+                        >
+                          <Pencil className="size-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => deletePurchase(p)}
+                          disabled={delBusy === p.id}
+                          title={t("common.delete")}
+                        >
+                          {delBusy === p.id ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4 text-red-600" />}
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -213,6 +269,121 @@ export default function PurchasesPage() {
           )}
         </CardContent>
       </Card>
+
+      <EditPurchaseDialog row={editRow} onClose={() => setEditRow(null)} />
     </>
+  );
+}
+
+function EditPurchaseDialog({ row, onClose }: { row: PurchaseRow | null; onClose: () => void }) {
+  const { t } = useI18n();
+  const supabase = createClient();
+  const qc = useQueryClient();
+  const [form, setForm] = useState({
+    reference: "",
+    vendor_id: "",
+    paid_account_id: "",
+    order_date: "",
+    notes: "",
+  });
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+
+  const { data: vendors } = useQuery({
+    queryKey: ["vendors-edit-pur"],
+    queryFn: async () => {
+      const { data } = await supabase.from("vendors").select("id, name").is("deleted_at", null).order("name");
+      return data ?? [];
+    },
+  });
+  const { data: accounts } = useQuery({
+    queryKey: ["accounts-edit-pur"],
+    queryFn: async () => {
+      const { data } = await supabase.from("accounts").select("id, name").is("deleted_at", null).order("created_at");
+      return data ?? [];
+    },
+  });
+
+  if (row && row.id !== loadedFor) {
+    setLoadedFor(row.id);
+    setForm({
+      reference: row.reference ?? "",
+      vendor_id: row.vendor_id ?? "",
+      paid_account_id: row.paid_account_id ?? "",
+      order_date: row.order_date ?? "",
+      notes: row.notes ?? "",
+    });
+  }
+
+  const save = useMutation({
+    mutationFn: async () => {
+      if (!row) return;
+      const { error } = await supabase
+        .from("purchases")
+        .update({
+          reference: form.reference.trim() || null,
+          vendor_id: form.vendor_id || null,
+          paid_account_id: form.paid_account_id || null,
+          order_date: form.order_date || undefined,
+          notes: form.notes.trim() || null,
+        })
+        .eq("id", row.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success(t("common.save"));
+      qc.invalidateQueries({ queryKey: ["purchases"] });
+      onClose();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <Dialog open={!!row} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent onClose={onClose}>
+        <DialogHeader>
+          <DialogTitle>{t("common.edit")} · {row?.reference || row?.doc_no}</DialogTitle>
+        </DialogHeader>
+        {row && (
+          <form onSubmit={(e) => { e.preventDefault(); save.mutate(); }} className="grid grid-cols-2 gap-4">
+            <p className="col-span-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+              {t("purchases.editScopeNote")}
+            </p>
+            <div className="col-span-2 space-y-1.5">
+              <Label>{t("purchases.reference")}</Label>
+              <Input value={form.reference} onChange={(e) => setForm({ ...form, reference: e.target.value })} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t("vendors.title")}</Label>
+              <Select value={form.vendor_id} onChange={(e) => setForm({ ...form, vendor_id: e.target.value })}>
+                <option value="">—</option>
+                {(vendors ?? []).map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t("purchases.paidFrom")}</Label>
+              <Select value={form.paid_account_id} onChange={(e) => setForm({ ...form, paid_account_id: e.target.value })}>
+                <option value="">—</option>
+                {(accounts ?? []).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t("common.date")}</Label>
+              <Input type="date" dir="ltr" value={form.order_date} onChange={(e) => setForm({ ...form, order_date: e.target.value })} />
+            </div>
+            <div className="col-span-2 space-y-1.5">
+              <Label>{t("common.notes")}</Label>
+              <Input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+            </div>
+            <div className="col-span-2 flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={onClose}>{t("common.cancel")}</Button>
+              <Button type="submit" disabled={save.isPending}>
+                {save.isPending && <Loader2 className="size-4 animate-spin" />}
+                {t("common.save")}
+              </Button>
+            </div>
+          </form>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }

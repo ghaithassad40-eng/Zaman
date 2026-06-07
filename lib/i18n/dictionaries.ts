@@ -196,6 +196,11 @@ export const dictionaries = {
     "purchases.years": "yr",
     "purchases.receive": "Receive into stock",
     "purchases.received": "Received",
+    "purchases.deleteConfirm": "Delete this purchase order? Any linked cash payment will also be removed.",
+    "purchases.deleteReceivedConfirm": "This PO has been received. Deleting will reverse the inventory addition AND remove the linked cash payment. Blocked if any units have already been sold. Continue?",
+    "purchases.deleted": "Purchase deleted",
+    "purchases.editScopeNote": "Editing here updates the PO header (reference, vendor, paid account, date, notes). To change items, quantities, or costs, delete this PO and create a new one.",
+    "purchases.paidFrom": "Paid from account",
     "purchases.items": "Items",
     "purchases.landedUnit": "Landed unit cost",
 
@@ -777,6 +782,11 @@ export const dictionaries = {
     "purchases.years": "سنة",
     "purchases.receive": "إدخال إلى المخزون",
     "purchases.received": "تم الاستلام",
+    "purchases.deleteConfirm": "حذف أمر الشراء هذا؟ سيتم إلغاء أي دفعة نقدية مرتبطة به.",
+    "purchases.deleteReceivedConfirm": "تم استلام هذا الأمر بالفعل. الحذف سيُلغي إضافة المخزون وسيحذف الدفعة المرتبطة. لا يُسمح إذا كانت أي وحدات قد بِيعت. هل تريد المتابعة؟",
+    "purchases.deleted": "تم حذف الشراء",
+    "purchases.editScopeNote": "التعديل هنا يحدّث ترويسة الأمر فقط (المرجع، المورّد، حساب الدفع، التاريخ، الملاحظات). لتعديل الأصناف أو الكميات أو التكاليف، احذف هذا الأمر وأنشئ أمراً جديداً.",
+    "purchases.paidFrom": "دُفع من حساب",
     "purchases.items": "الأصناف",
     "purchases.landedUnit": "تكلفة الوحدة الواصلة",
 

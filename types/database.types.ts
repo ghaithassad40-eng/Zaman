@@ -7,6 +7,8 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
@@ -108,6 +110,13 @@ export type Database = {
             referencedRelation: "accounts"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "bank_statement_lines_matched_txn_id_fkey"
+            columns: ["matched_txn_id"]
+            isOneToOne: false
+            referencedRelation: "cash_transactions"
+            referencedColumns: ["id"]
+          },
         ]
       }
       cash_transactions: {
@@ -174,6 +183,13 @@ export type Database = {
             referencedRelation: "partners"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "cash_transactions_statement_line_id_fkey"
+            columns: ["statement_line_id"]
+            isOneToOne: false
+            referencedRelation: "bank_statement_lines"
+            referencedColumns: ["id"]
+          },
         ]
       }
       company_settings: {
@@ -189,7 +205,6 @@ export type Database = {
           created_at: string
           currency: string
           default_delivery_fee: number
-          opening_balance_date: string | null
           email: string | null
           gst_rate: number
           id: string
@@ -199,6 +214,7 @@ export type Database = {
           name: string
           name_ar: string
           national_no: string | null
+          opening_balance_date: string | null
           packaging_cost_per_order: number
           phone: string | null
           tax_number: string | null
@@ -216,7 +232,6 @@ export type Database = {
           created_at?: string
           currency?: string
           default_delivery_fee?: number
-          opening_balance_date?: string | null
           email?: string | null
           gst_rate?: number
           id?: string
@@ -226,6 +241,7 @@ export type Database = {
           name?: string
           name_ar?: string
           national_no?: string | null
+          opening_balance_date?: string | null
           packaging_cost_per_order?: number
           phone?: string | null
           tax_number?: string | null
@@ -243,7 +259,6 @@ export type Database = {
           created_at?: string
           currency?: string
           default_delivery_fee?: number
-          opening_balance_date?: string | null
           email?: string | null
           gst_rate?: number
           id?: string
@@ -253,6 +268,7 @@ export type Database = {
           name?: string
           name_ar?: string
           national_no?: string | null
+          opening_balance_date?: string | null
           packaging_cost_per_order?: number
           phone?: string | null
           tax_number?: string | null
@@ -414,6 +430,24 @@ export type Database = {
         }
         Relationships: []
       }
+      doc_counters: {
+        Row: {
+          doc_type: string
+          next_val: number
+          prefix: string
+        }
+        Insert: {
+          doc_type: string
+          next_val?: number
+          prefix: string
+        }
+        Update: {
+          doc_type?: string
+          next_val?: number
+          prefix?: string
+        }
+        Relationships: []
+      }
       fiscal_closes: {
         Row: {
           closed_at: string
@@ -454,12 +488,6 @@ export type Database = {
           status?: string
           total_equity?: number | null
         }
-        Relationships: []
-      }
-      doc_counters: {
-        Row: { doc_type: string; next_val: number; prefix: string }
-        Insert: { doc_type: string; next_val?: number; prefix: string }
-        Update: { doc_type?: string; next_val?: number; prefix?: string }
         Relationships: []
       }
       inventory: {
@@ -762,7 +790,7 @@ export type Database = {
           avg_selling_price?: number | null
           brand?: string | null
           category?: string | null
-          color?: string | null
+          color?: string
           created_at?: string
           created_by?: string | null
           default_selling_price?: number | null
@@ -791,7 +819,7 @@ export type Database = {
           avg_selling_price?: number | null
           brand?: string | null
           category?: string | null
-          color?: string | null
+          color?: string
           created_at?: string
           created_by?: string | null
           default_selling_price?: number | null
@@ -1335,38 +1363,114 @@ export type Database = {
         Relationships: []
       }
     }
-    Views: { [_ in never]: never }
+    Views: {
+      v_assets: {
+        Row: {
+          accumulated_depreciation: number | null
+          book_value: number | null
+          cost: number | null
+          id: string | null
+          monthly_depreciation: number | null
+          months_elapsed: number | null
+          months_total: number | null
+          name: string | null
+          purchase_id: string | null
+          salvage_value: number | null
+          start_date: string | null
+          vendor_id: string | null
+          vendor_name: string | null
+          years: number | null
+        }
+        Relationships: []
+      }
+    }
     Functions: {
       adjust_inventory: {
         Args: { p_new_qty: number; p_note?: string; p_product_id: string }
         Returns: undefined
       }
-      assign_delivery_vendor: { Args: { p_sale_id: string; p_vendor_id: string }; Returns: undefined }
+      assign_delivery_vendor: {
+        Args: { p_sale_id: string; p_vendor_id: string }
+        Returns: undefined
+      }
       claim_partner_seat: {
         Args: { p_full_name: string; p_name_ar?: string }
-        Returns: Json
+        Returns: {
+          created_at: string
+          deleted_at: string | null
+          email: string | null
+          full_name: string
+          id: string
+          is_admin: boolean
+          name_ar: string | null
+          ownership_pct: number
+          phone: string | null
+          role: string
+          updated_at: string
+          user_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "partners"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
-      close_fiscal_year: { Args: { p_from: string; p_to: string; p_label: string }; Returns: string }
-      is_admin_partner: { Args: never; Returns: boolean }
-      reopen_fiscal_year: { Args: { p_id: string }; Returns: undefined }
-      confirm_dividend_share: { Args: { p_share_id: string }; Returns: undefined }
+      close_fiscal_year: {
+        Args: { p_from: string; p_label: string; p_to: string }
+        Returns: string
+      }
+      confirm_dividend_share: {
+        Args: { p_share_id: string }
+        Returns: undefined
+      }
       confirm_sale: { Args: { p_sale_id: string }; Returns: undefined }
-      declare_dividend: { Args: { p_date: string; p_note: string; p_total: number }; Returns: string }
+      convert_historicals_to_sales: {
+        Args: { p_date: string }
+        Returns: {
+          converted: number
+          profit: number
+          revenue: number
+          units: number
+        }[]
+      }
+      declare_dividend: {
+        Args: { p_date: string; p_note: string; p_total: number }
+        Returns: string
+      }
       default_account_id: { Args: never; Returns: string }
       default_delivery_vendor: { Args: never; Returns: string }
       delete_dividend: { Args: { p_id: string }; Returns: undefined }
-      finalize_receiving: { Args: { p_purchase_id: string }; Returns: undefined }
+      finalize_receiving: {
+        Args: { p_purchase_id: string }
+        Returns: undefined
+      }
       get_financials: { Args: { p_from: string; p_to: string }; Returns: Json }
+      is_admin_partner: { Args: never; Returns: boolean }
       is_partner: { Args: never; Returns: boolean }
-      match_bank_line: { Args: { p_line: string; p_txn: string }; Returns: undefined }
+      match_bank_line: {
+        Args: { p_line: string; p_txn: string }
+        Returns: undefined
+      }
       next_doc_no: { Args: { p_type: string }; Returns: string }
-      pack_sale: { Args: { p_items: Json; p_sale_id: string }; Returns: undefined }
-      pay_dividend_share: { Args: { p_account_id: string; p_date: string; p_share_id: string }; Returns: undefined }
-      set_txn_reconciled: { Args: { p_txn: string; p_value: boolean }; Returns: undefined }
-      unmatch_bank_line: { Args: { p_line: string }; Returns: undefined }
+      pack_sale: {
+        Args: { p_items: Json; p_sale_id: string }
+        Returns: undefined
+      }
+      pay_dividend_share: {
+        Args: { p_account_id: string; p_date: string; p_share_id: string }
+        Returns: undefined
+      }
       receive_purchase: { Args: { p_purchase_id: string }; Returns: undefined }
       recompute_packaging_cost: { Args: never; Returns: undefined }
+      reopen_fiscal_year: { Args: { p_id: string }; Returns: undefined }
       return_sale: { Args: { p_sale_id: string }; Returns: undefined }
+      reverse_purchase: { Args: { p_purchase_id: string }; Returns: undefined }
+      set_txn_reconciled: {
+        Args: { p_txn: string; p_value: boolean }
+        Returns: undefined
+      }
+      unmatch_bank_line: { Args: { p_line: string }; Returns: undefined }
     }
     Enums: {
       account_type: "cash" | "bank" | "wallet" | "equity"
@@ -1384,17 +1488,147 @@ export type Database = {
       txn_direction: "in" | "out"
       vendor_kind: "delivery" | "service" | "supplier" | "other"
     }
-    CompositeTypes: { [_ in never]: never }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
 }
 
-type DefaultSchema = Database["public"]
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
 
-export type Tables<T extends keyof DefaultSchema["Tables"]> =
-  DefaultSchema["Tables"][T]["Row"]
-export type TablesInsert<T extends keyof DefaultSchema["Tables"]> =
-  DefaultSchema["Tables"][T]["Insert"]
-export type TablesUpdate<T extends keyof DefaultSchema["Tables"]> =
-  DefaultSchema["Tables"][T]["Update"]
-export type Enums<T extends keyof DefaultSchema["Enums"]> =
-  DefaultSchema["Enums"][T]
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
+
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
+
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {
+      account_type: ["cash", "bank", "wallet", "equity"],
+      asset_kind: ["consumable", "equipment"],
+      payment_status: ["unpaid", "partial", "paid", "refunded"],
+      purchase_status: ["ordered", "shipped", "received", "cancelled"],
+      sale_status: [
+        "draft",
+        "confirmed",
+        "packed",
+        "delivered",
+        "completed",
+        "cancelled",
+        "returned",
+      ],
+      txn_direction: ["in", "out"],
+      vendor_kind: ["delivery", "service", "supplier", "other"],
+    },
+  },
+} as const
