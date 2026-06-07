@@ -52,6 +52,9 @@ export default function SettingsPage() {
     auditor_firm: "",
     auditor_license: "",
     opening_balance_date: "",
+    warranty_months: "12",
+    terms_extra_en: "",
+    terms_extra_ar: "",
   });
 
   useEffect(() => {
@@ -73,6 +76,9 @@ export default function SettingsPage() {
         auditor_firm: settings.auditor_firm ?? "",
         auditor_license: settings.auditor_license ?? "",
         opening_balance_date: settings.opening_balance_date ?? "",
+        warranty_months: String(settings.warranty_months ?? 12),
+        terms_extra_en: settings.terms_extra_en ?? "",
+        terms_extra_ar: settings.terms_extra_ar ?? "",
       });
     }
   }, [settings]);
@@ -112,6 +118,9 @@ export default function SettingsPage() {
           auditor_firm: form.auditor_firm || null,
           auditor_license: form.auditor_license || null,
           opening_balance_date: form.opening_balance_date || null,
+          warranty_months: Math.max(0, Math.round(Number(form.warranty_months) || 0)),
+          terms_extra_en: form.terms_extra_en.trim() || null,
+          terms_extra_ar: form.terms_extra_ar.trim() || null,
         })
         .eq("id", settings.id);
       if (error) throw error;
@@ -160,6 +169,15 @@ export default function SettingsPage() {
               </Field>
               <Field label={t("settings.openingBalanceDate")}>
                 <Input type="date" dir="ltr" value={form.opening_balance_date} onChange={(e) => setForm({ ...form, opening_balance_date: e.target.value })} placeholder="YYYY-MM-DD" />
+              </Field>
+              <Field label={t("settings.warrantyMonths")}>
+                <Input type="number" min={0} step={1} dir="ltr" value={form.warranty_months} onChange={(e) => setForm({ ...form, warranty_months: e.target.value })} />
+              </Field>
+              <Field label={t("settings.termsExtraEn")} className="sm:col-span-2">
+                <Input dir="ltr" value={form.terms_extra_en} onChange={(e) => setForm({ ...form, terms_extra_en: e.target.value })} placeholder={t("settings.termsExtraEnPh")} />
+              </Field>
+              <Field label={t("settings.termsExtraAr")} className="sm:col-span-2">
+                <Input dir="rtl" value={form.terms_extra_ar} onChange={(e) => setForm({ ...form, terms_extra_ar: e.target.value })} placeholder={t("settings.termsExtraArPh")} />
               </Field>
               <Field label={t("common.phone")}>
                 <Input dir="ltr" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />

@@ -218,7 +218,10 @@ export type Database = {
           packaging_cost_per_order: number
           phone: string | null
           tax_number: string | null
+          terms_extra_ar: string | null
+          terms_extra_en: string | null
           updated_at: string
+          warranty_months: number
         }
         Insert: {
           address?: string | null
@@ -245,7 +248,10 @@ export type Database = {
           packaging_cost_per_order?: number
           phone?: string | null
           tax_number?: string | null
+          terms_extra_ar?: string | null
+          terms_extra_en?: string | null
           updated_at?: string
+          warranty_months?: number
         }
         Update: {
           address?: string | null
@@ -272,7 +278,10 @@ export type Database = {
           packaging_cost_per_order?: number
           phone?: string | null
           tax_number?: string | null
+          terms_extra_ar?: string | null
+          terms_extra_en?: string | null
           updated_at?: string
+          warranty_months?: number
         }
         Relationships: []
       }

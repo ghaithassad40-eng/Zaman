@@ -57,6 +57,11 @@ export const dictionaries = {
     "sales.invoiceFailed": "Failed to issue invoice",
     "sales.invoiceSavedPdfFailed": "Invoice saved, but PDF render failed",
     "settings.openingBalanceDate": "Opening balance date (for imported historicals)",
+    "settings.warrantyMonths": "Warranty period (months)",
+    "settings.termsExtraEn": "Extra invoice T&C clause — English (optional)",
+    "settings.termsExtraEnPh": "e.g. Engraving / strap sizing offered free within 30 days of purchase.",
+    "settings.termsExtraAr": "بند إضافي لشروط الفاتورة — عربي (اختياري)",
+    "settings.termsExtraArPh": "مثلاً: النقش وتعديل السوار مجاناً خلال 30 يوماً من الشراء.",
     "common.required": "Required",
     "common.profit": "Profit",
 
@@ -727,6 +732,11 @@ export const dictionaries = {
     "sales.invoiceFailed": "فشل إصدار الفاتورة",
     "sales.invoiceSavedPdfFailed": "حُفظت الفاتورة لكن فشل توليد PDF",
     "settings.openingBalanceDate": "تاريخ الرصيد الافتتاحي (للبيانات التاريخية المستوردة)",
+    "settings.warrantyMonths": "مدة الضمان (شهر)",
+    "settings.termsExtraEn": "بند إضافي لشروط الفاتورة — إنجليزي (اختياري)",
+    "settings.termsExtraEnPh": "e.g. Engraving / strap sizing offered free within 30 days of purchase.",
+    "settings.termsExtraAr": "بند إضافي لشروط الفاتورة — عربي (اختياري)",
+    "settings.termsExtraArPh": "مثلاً: النقش وتعديل السوار مجاناً خلال 30 يوماً من الشراء.",
     "common.required": "مطلوب",
     "common.profit": "الربح",
 
