@@ -911,6 +911,38 @@ function ProductDialog({
           )}
           <div className="space-y-1.5 sm:col-span-2">
             <Label>{t("products.photos")}</Label>
+            <div
+              tabIndex={0}
+              onPaste={(e) => {
+                const items = Array.from(e.clipboardData?.items ?? []);
+                const imgs: File[] = [];
+                for (const it of items) {
+                  if (it.kind === "file" && it.type.startsWith("image/")) {
+                    const f = it.getAsFile();
+                    if (f) {
+                      const ext = (f.type.split("/")[1] || "png").replace("jpeg", "jpg");
+                      const named = f.name && f.name !== "image.png"
+                        ? f
+                        : new File([f], `pasted-${Date.now()}.${ext}`, { type: f.type });
+                      imgs.push(named);
+                    }
+                  }
+                }
+                if (imgs.length) {
+                  e.preventDefault();
+                  setFiles((p) => [...p, ...imgs]);
+                }
+              }}
+              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
+              onDrop={(e) => {
+                const dropped = Array.from(e.dataTransfer?.files ?? []).filter((f) => f.type.startsWith("image/"));
+                if (dropped.length) {
+                  e.preventDefault();
+                  setFiles((p) => [...p, ...dropped]);
+                }
+              }}
+              className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
             <div className="flex flex-wrap gap-2">
               {existingImages.map((url, i) => (
                 <div key={url} className="group relative size-20 overflow-hidden rounded-md border bg-muted">
@@ -957,6 +989,8 @@ function ProductDialog({
                   onChange={(e) => setFiles((p) => [...p, ...Array.from(e.target.files ?? [])])}
                 />
               </label>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">{t("products.pasteHint")}</p>
             </div>
             <ImageUrlAdder onAdd={(url) => setExistingImages((p) => (p.includes(url) ? p : [...p, url]))} />
           </div>
