@@ -526,12 +526,17 @@ export default function NewPurchasePage() {
                   );
                 })()}
               </div>
-              <div className="col-span-2 flex justify-end gap-2">
-                <Button type="button" variant="outline"
+              <div className="col-span-2 flex items-center justify-between gap-2">
+                <Button type="button" variant="ghost" className="text-destructive hover:text-destructive"
                   onClick={() => { updateLine(assetLine.key, { isAsset: false }); setAssetLineKey(null); }}>
-                  {t("common.cancel")}
+                  {t("purchases.unmarkAsset")}
                 </Button>
-                <Button type="submit">{t("common.save")}</Button>
+                <div className="flex gap-2">
+                  <Button type="button" variant="outline" onClick={() => setAssetLineKey(null)}>
+                    {t("common.close")}
+                  </Button>
+                  <Button type="submit">{t("common.save")}</Button>
+                </div>
               </div>
             </form>
           )}

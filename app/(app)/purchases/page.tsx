@@ -275,6 +275,18 @@ export default function PurchasesPage() {
   );
 }
 
+type ItemEdit = {
+  id: string;
+  name: string;
+  qty: number;
+  landed_unit_cost: number;
+  is_asset: boolean;
+  asset_name: string;
+  depreciation_years: string;
+  depreciation_start_date: string;
+  salvage_value: string;
+};
+
 function EditPurchaseDialog({ row, onClose }: { row: PurchaseRow | null; onClose: () => void }) {
   const { t } = useI18n();
   const supabase = createClient();
@@ -286,6 +298,7 @@ function EditPurchaseDialog({ row, onClose }: { row: PurchaseRow | null; onClose
     order_date: "",
     notes: "",
   });
+  const [items, setItems] = useState<ItemEdit[]>([]);
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
 
   const { data: vendors } = useQuery({
@@ -302,6 +315,19 @@ function EditPurchaseDialog({ row, onClose }: { row: PurchaseRow | null; onClose
       return data ?? [];
     },
   });
+  const { data: purItems } = useQuery({
+    queryKey: ["purchase-items", row?.id],
+    enabled: !!row?.id,
+    queryFn: async (): Promise<Tables<"purchase_items">[]> => {
+      const { data, error } = await supabase
+        .from("purchase_items")
+        .select("*")
+        .eq("purchase_id", row!.id)
+        .order("created_at");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
 
   if (row && row.id !== loadedFor) {
     setLoadedFor(row.id);
@@ -312,6 +338,26 @@ function EditPurchaseDialog({ row, onClose }: { row: PurchaseRow | null; onClose
       order_date: row.order_date ?? "",
       notes: row.notes ?? "",
     });
+  }
+  // Sync items state once they arrive for this row
+  if (row && purItems && (items.length === 0 || items[0]?.id !== purItems[0]?.id) && purItems[0]?.id !== items[0]?.id) {
+    setItems(
+      purItems.map((pi) => ({
+        id: pi.id,
+        name: pi.name ?? "",
+        qty: pi.qty,
+        landed_unit_cost: Number(pi.landed_unit_cost),
+        is_asset: pi.is_asset,
+        asset_name: pi.asset_name ?? "",
+        depreciation_years: pi.depreciation_years != null ? String(pi.depreciation_years) : "5",
+        depreciation_start_date: pi.depreciation_start_date ?? row.order_date,
+        salvage_value: pi.salvage_value != null ? String(pi.salvage_value) : "0",
+      })),
+    );
+  }
+
+  function updateItem(id: string, patch: Partial<ItemEdit>) {
+    setItems((p) => p.map((it) => (it.id === id ? { ...it, ...patch } : it)));
   }
 
   const save = useMutation({
@@ -328,10 +374,29 @@ function EditPurchaseDialog({ row, onClose }: { row: PurchaseRow | null; onClose
         })
         .eq("id", row.id);
       if (error) throw error;
+
+      // Persist per-line asset / depreciation changes.
+      for (const it of items) {
+        const { error: iErr } = await supabase
+          .from("purchase_items")
+          .update({
+            is_asset: it.is_asset,
+            asset_name: it.is_asset ? (it.asset_name.trim() || it.name || null) : null,
+            depreciation_years: it.is_asset ? (Number(it.depreciation_years) || null) : null,
+            depreciation_start_date: it.is_asset ? (it.depreciation_start_date || row.order_date) : null,
+            salvage_value: it.is_asset ? round3(Number(it.salvage_value) || 0) : 0,
+          })
+          .eq("id", it.id);
+        if (iErr) throw iErr;
+      }
     },
     onSuccess: () => {
       toast.success(t("common.save"));
       qc.invalidateQueries({ queryKey: ["purchases"] });
+      qc.invalidateQueries({ queryKey: ["purchase-items"] });
+      qc.invalidateQueries({ queryKey: ["fixed-assets"] });
+      setItems([]);
+      setLoadedFor(null);
       onClose();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -374,6 +439,56 @@ function EditPurchaseDialog({ row, onClose }: { row: PurchaseRow | null; onClose
               <Label>{t("common.notes")}</Label>
               <Input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
             </div>
+
+            {/* Per-line asset toggle */}
+            <div className="col-span-2 space-y-2">
+              <Label>{t("purchases.lineAssets")}</Label>
+              <p className="text-xs text-muted-foreground">{t("purchases.lineAssetsHint")}</p>
+              <div className="space-y-2">
+                {items.map((it) => (
+                  <div key={it.id} className={"rounded-md border p-2.5 " + (it.is_asset ? "border-primary/40 bg-primary/5" : "")}>
+                    <label className="flex items-center justify-between gap-2 text-sm">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          className="size-4 accent-[var(--primary)]"
+                          checked={it.is_asset}
+                          onChange={(e) => updateItem(it.id, { is_asset: e.target.checked })}
+                        />
+                        <span className={it.is_asset ? "font-medium text-primary" : ""}>{it.name || "—"}</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        ×{it.qty} · {formatJOD(round3(it.qty * it.landed_unit_cost), "en")}
+                      </span>
+                    </label>
+                    {it.is_asset && (
+                      <div className="mt-2 grid grid-cols-3 gap-2">
+                        <div className="space-y-1 col-span-3">
+                          <Label className="text-xs">{t("purchases.assetName")}</Label>
+                          <Input value={it.asset_name} placeholder={it.name} onChange={(e) => updateItem(it.id, { asset_name: e.target.value })} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">{t("purchases.depYears")}</Label>
+                          <Input type="number" step="0.5" min={0.5} dir="ltr" value={it.depreciation_years} onChange={(e) => updateItem(it.id, { depreciation_years: e.target.value })} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">{t("purchases.depStart")}</Label>
+                          <Input type="date" dir="ltr" value={it.depreciation_start_date} onChange={(e) => updateItem(it.id, { depreciation_start_date: e.target.value })} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">{t("purchases.salvageValue")}</Label>
+                          <Input type="number" step="0.001" dir="ltr" value={it.salvage_value} onChange={(e) => updateItem(it.id, { salvage_value: e.target.value })} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+                {items.length === 0 && (
+                  <p className="text-xs text-muted-foreground">{t("common.empty")}</p>
+                )}
+              </div>
+            </div>
+
             <div className="col-span-2 flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={onClose}>{t("common.cancel")}</Button>
               <Button type="submit" disabled={save.isPending}>
