@@ -171,13 +171,9 @@ export default function NewPurchasePage() {
       }).select("id").single();
       if (pErr) throw pErr;
 
-      if (paidAccount && computed.totalLanded > 0) {
-        await supabase.from("cash_transactions").insert({
-          account_id: paidAccount, direction: "out", amount: computed.totalLanded,
-          category: "purchase", txn_date: orderDate, ref_table: "purchases", ref_id: purchase.id,
-          note: reference.trim() || (docNo as string) || "Purchase", created_by: uid,
-        });
-      }
+      // NB: the cash_transactions row is posted by trg_purchase_cashout
+      // (server trigger). It reads NEW.paid_account_id, so do NOT insert
+      // one here — that would create a duplicate.
 
       for (const l of valid) {
         let productId = l.productId;
