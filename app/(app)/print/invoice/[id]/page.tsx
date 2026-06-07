@@ -33,7 +33,6 @@ export default function PrintInvoicePage({ params }: { params: Promise<{ id: str
     },
   });
 
-  // Generate a QR code that encodes the verification URL for this invoice.
   useEffect(() => {
     if (!data?.invoice) return;
     const origin = typeof window !== "undefined" ? window.location.origin : "";
@@ -51,7 +50,6 @@ export default function PrintInvoicePage({ params }: { params: Promise<{ id: str
       .catch(() => setQrDataUrl(""));
   }, [data?.invoice, data?.company]);
 
-  // Auto-trigger the print dialog once content is rendered.
   useEffect(() => {
     if (!data?.invoice) return;
     const tm = setTimeout(() => window.print(), 500);
@@ -68,11 +66,11 @@ export default function PrintInvoicePage({ params }: { params: Promise<{ id: str
   const delivery = Number(invoice.delivery_fee);
   const discount = Number(invoice.discount);
   const total = Number(invoice.total);
+  const ig = (company?.instagram_handle ?? "").replace(/^@+/, "");
 
   return (
     <>
       <style jsx global>{`
-        /* On-screen preview: white sheet with A4 proportions, centered. */
         body { background: #f3efe6; }
         .a4-sheet {
           width: 210mm;
@@ -84,33 +82,35 @@ export default function PrintInvoicePage({ params }: { params: Promise<{ id: str
           position: relative;
           box-shadow: 0 4px 24px rgba(0,0,0,0.12);
           font-size: 11pt;
-          line-height: 1.35;
+          line-height: 1.4;
+          display: flex;
+          flex-direction: column;
           overflow: hidden;
         }
+        /* Big diagonal-ish brand watermark across the lower middle of the page. */
         .watermark {
           position: absolute;
-          left: 0;
-          right: 0;
-          bottom: 18%;
-          height: 40%;
+          left: 5%; right: 5%;
+          top: 38%;
+          height: 35%;
+          background-image: url('/brand-watermark.svg');
           background-repeat: no-repeat;
           background-position: center;
-          background-size: 80% auto;
-          opacity: 0.10;
+          background-size: contain;
+          opacity: 0.12;
           pointer-events: none;
           z-index: 0;
         }
-        .a4-sheet > .sheet-body { position: relative; z-index: 1; }
+        .sheet-body { position: relative; z-index: 1; flex: 1; display: flex; flex-direction: column; }
+        .sheet-footer { position: relative; z-index: 1; margin-top: auto; }
 
         @media print {
           @page { size: A4; margin: 0; }
           html, body { background: white !important; }
           .no-print, aside, header.app-topbar { display: none !important; }
           main { padding: 0 !important; margin: 0 !important; }
-          .a4-sheet {
-            margin: 0; box-shadow: none;
-            page-break-after: always;
-          }
+          .a4-sheet { margin: 0; box-shadow: none; page-break-after: always; }
+          .watermark { opacity: 0.10; }
         }
       `}</style>
 
@@ -125,8 +125,7 @@ export default function PrintInvoicePage({ params }: { params: Promise<{ id: str
       </div>
 
       <div className="a4-sheet">
-        {/* Background watermark — always the system Zaman brand mark */}
-        <div className="watermark" style={{ backgroundImage: `url(/brand-watermark.svg)` }} />
+        <div className="watermark" />
 
         <div className="sheet-body">
           {/* Header */}
@@ -152,8 +151,8 @@ export default function PrintInvoicePage({ params }: { params: Promise<{ id: str
             </div>
           </div>
 
-          {/* Bill-to + meta */}
-          <div className="grid grid-cols-2 gap-6 rounded-md border border-[#e7e0d1] p-4 text-sm">
+          {/* Bill-to */}
+          <div className="grid grid-cols-2 gap-6 rounded-md border border-[#e7e0d1] bg-white/70 p-4 text-sm">
             <div>
               <div className="text-[8pt] uppercase tracking-wider text-[#7a6e57]">Bill To</div>
               <div className="mt-1 font-medium">{invoice.customers?.name ?? "—"}</div>
@@ -179,7 +178,7 @@ export default function PrintInvoicePage({ params }: { params: Promise<{ id: str
             </thead>
             <tbody>
               {items.map((it, i) => (
-                <tr key={i}>
+                <tr key={i} className="bg-white/70">
                   <td className="border border-[#f1ead9] p-2">{it.description ?? "—"}</td>
                   <td className="border border-[#f1ead9] p-2 text-center">{it.qty}</td>
                   <td className="border border-[#f1ead9] p-2 text-right">{j(it.unit_price)}</td>
@@ -192,23 +191,9 @@ export default function PrintInvoicePage({ params }: { params: Promise<{ id: str
             </tbody>
           </table>
 
-          {/* Totals + QR side by side */}
-          <div className="mt-4 grid grid-cols-2 gap-6">
-            {/* QR + verify */}
-            <div className="flex items-start gap-3">
-              {qrDataUrl && (
-                <>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={qrDataUrl} alt="QR" className="h-28 w-28 rounded-md border border-[#e7e0d1] p-1" />
-                  <div className="text-[9pt] text-[#7a6e57]">
-                    <div className="font-medium text-[#4a3a18]">Verify this invoice</div>
-                    <div className="mt-1">Scan the code to view the source record on file.</div>
-                  </div>
-                </>
-              )}
-            </div>
-
-            <div className="space-y-1 text-sm">
+          {/* Totals — right-aligned, narrow box */}
+          <div className="mt-4 flex justify-end">
+            <div className="w-72 space-y-1 text-sm">
               <div className="flex justify-between"><span>Subtotal</span><span>{j(subtotal)}</span></div>
               {discount > 0 && <div className="flex justify-between"><span>Discount</span><span>−{j(discount)}</span></div>}
               {delivery > 0 && <div className="flex justify-between"><span>Delivery</span><span>{j(delivery)}</span></div>}
@@ -220,16 +205,37 @@ export default function PrintInvoicePage({ params }: { params: Promise<{ id: str
           </div>
 
           {invoice.notes && (
-            <div className="mt-6 rounded-md border border-[#e7e0d1] p-3 text-sm">
+            <div className="mt-6 rounded-md border border-[#e7e0d1] bg-white/70 p-3 text-sm">
               <div className="text-[8pt] uppercase tracking-wider text-[#7a6e57]">Notes</div>
               <div className="mt-1">{invoice.notes}</div>
             </div>
           )}
+        </div>
 
-          {/* Footer */}
-          <div className="absolute bottom-10 left-14 right-14 border-t border-[#e7e0d1] pt-3 text-center text-[8pt] text-[#7a6e57]">
+        {/* Footer area: QR on the left, signature + thank-you on the right.
+            Lives in mt-auto so it's pushed to the bottom of the A4 sheet. */}
+        <div className="sheet-footer mt-10 border-t border-[#e7e0d1] pt-4">
+          <div className="flex items-end justify-between gap-6">
+            <div className="flex items-start gap-3">
+              {qrDataUrl && (
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={qrDataUrl} alt="QR" className="h-24 w-24 rounded-md border border-[#e7e0d1] bg-white p-1" />
+                  <div className="text-[9pt] text-[#7a6e57]">
+                    <div className="font-medium text-[#4a3a18]">Verify this invoice</div>
+                    <div className="mt-1 max-w-[180px]">Scan the QR to view this invoice on file.</div>
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="text-right text-[9pt] text-[#7a6e57]">
+              <div className="mb-8 text-[8pt] uppercase tracking-wider">Authorised signature</div>
+              <div className="border-t border-[#7a6e57]/40 pt-1">{company?.name ?? "Zaman Watch"}</div>
+            </div>
+          </div>
+          <div className="mt-4 text-center text-[8pt] text-[#7a6e57]">
             Thank you for your business · {company?.name_ar ?? company?.name ?? "Zaman Watch"}
-            {company?.instagram_handle && <span> · @{company.instagram_handle}</span>}
+            {ig && <> · @{ig}</>}
           </div>
         </div>
       </div>

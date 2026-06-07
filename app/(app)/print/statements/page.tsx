@@ -83,9 +83,11 @@ function PrintStatementsInner() {
         }
         .watermark {
           position: absolute;
-          left: 0; right: 0; bottom: 18%; height: 40%;
+          left: 5%; right: 5%; top: 38%; height: 35%;
+          background-image: url('/brand-watermark.svg');
           background-repeat: no-repeat; background-position: center;
-          background-size: 80% auto; opacity: 0.09;
+          background-size: contain;
+          opacity: 0.10;
           pointer-events: none; z-index: 0;
         }
         .a4-sheet > .sheet-body { position: relative; z-index: 1; }
@@ -110,7 +112,7 @@ function PrintStatementsInner() {
 
       <div className="a4-sheet">
         {/* Background watermark — always the system Zaman brand mark */}
-        <div className="watermark" style={{ backgroundImage: `url(/brand-watermark.svg)` }} />
+        <div className="watermark" />
 
         <div className="sheet-body">
           {/* Header */}
