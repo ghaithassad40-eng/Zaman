@@ -56,6 +56,24 @@ export default function BanksPage() {
   const [txnAcc, setTxnAcc] = useState<string | null>(null);
   const [editAcc, setEditAcc] = useState<AccountWithTxns | null>(null);
   const [reconcileAcc, setReconcileAcc] = useState<AccountWithTxns | null>(null);
+  const [editTxn, setEditTxn] = useState<Tables<"cash_transactions"> | null>(null);
+  const [delBusy, setDelBusy] = useState<string | null>(null);
+
+  async function removeTxn(x: Tables<"cash_transactions">) {
+    if (x.ref_table) {
+      toast.error(t("banks.txnLinked"));
+      return;
+    }
+    if (!window.confirm(t("banks.deleteTxnConfirm"))) return;
+    setDelBusy(x.id);
+    try {
+      const { error } = await supabase.from("cash_transactions").delete().eq("id", x.id);
+      if (error) throw error;
+      toast.success(t("banks.txnDeleted"));
+      qc.invalidateQueries({ queryKey: ["banks"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    } catch (e) { toast.error((e as Error).message); } finally { setDelBusy(null); }
+  }
 
   const { data, isLoading } = useQuery({
     queryKey: ["banks"],
@@ -176,25 +194,46 @@ export default function BanksPage() {
                       <TableHead>{t("banks.account")}</TableHead>
                       <TableHead>{t("assets.category")}</TableHead>
                       <TableHead className="text-end">{t("banks.amount")}</TableHead>
+                      <TableHead className="text-end">{t("common.actions")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {data.recent.map((x) => (
-                      <TableRow key={x.id}>
-                        <TableCell className="text-muted-foreground">{x.txn_date}</TableCell>
-                        <TableCell>{x.accounts?.name ?? "—"}</TableCell>
-                        <TableCell>
-                          <span className="text-muted-foreground">{x.category ?? "—"}</span>
-                          {x.note && <span className="ms-1 text-xs text-muted-foreground">· {x.note}</span>}
-                        </TableCell>
-                        <TableCell className={"text-end font-medium " + (x.direction === "in" ? "text-success" : "text-destructive")}>
-                          <span className="inline-flex items-center gap-1">
-                            {x.direction === "in" ? <ArrowDownLeft className="size-3.5" /> : <ArrowUpRight className="size-3.5" />}
-                            {formatJOD(x.amount, locale)}
-                          </span>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {data.recent.map((x) => {
+                      const linked = !!x.ref_table;
+                      return (
+                        <TableRow key={x.id}>
+                          <TableCell className="text-muted-foreground">{x.txn_date}</TableCell>
+                          <TableCell>{x.accounts?.name ?? "—"}</TableCell>
+                          <TableCell>
+                            <span className="text-muted-foreground">{x.category ?? "—"}</span>
+                            {x.note && <span className="ms-1 text-xs text-muted-foreground">· {x.note}</span>}
+                            {linked && <span className="ms-1 rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{x.ref_table}</span>}
+                          </TableCell>
+                          <TableCell className={"text-end font-medium " + (x.direction === "in" ? "text-success" : "text-destructive")}>
+                            <span className="inline-flex items-center gap-1">
+                              {x.direction === "in" ? <ArrowDownLeft className="size-3.5" /> : <ArrowUpRight className="size-3.5" />}
+                              {formatJOD(x.amount, locale)}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-end">
+                            <div className="flex justify-end gap-1">
+                              <Button size="sm" variant="ghost" onClick={() => setEditTxn(x)} title={t("common.edit")}>
+                                <Pencil className="size-4" />
+                              </Button>
+                              <Button
+                                size="sm" variant="ghost"
+                                className="text-destructive hover:text-destructive disabled:opacity-30"
+                                disabled={delBusy === x.id || linked}
+                                onClick={() => removeTxn(x)}
+                                title={linked ? t("banks.txnLinked") : t("common.delete")}
+                              >
+                                {delBusy === x.id ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               ) : (
@@ -217,6 +256,7 @@ export default function BanksPage() {
       <AddTxnDialog accountId={txnAcc} onClose={() => setTxnAcc(null)} />
       <EditAccountDialog account={editAcc} onClose={() => setEditAcc(null)} />
       <ReconcileDialog account={reconcileAcc} onClose={() => setReconcileAcc(null)} />
+      <EditTxnDialog txn={editTxn} accounts={data?.accounts ?? []} onClose={() => setEditTxn(null)} />
     </>
   );
 }
@@ -719,6 +759,142 @@ function ReconcileDialog({ account, onClose }: { account: AccountWithTxns | null
             </>
           )}
         </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditTxnDialog({ txn, accounts, onClose }: { txn: Tables<"cash_transactions"> | null; accounts: AccountWithTxns[]; onClose: () => void }) {
+  const { t } = useI18n();
+  const supabase = createClient();
+  const qc = useQueryClient();
+  const [form, setForm] = useState({
+    direction: "out" as "in" | "out", amount: "", category: "expense",
+    note: "", date: new Date().toISOString().slice(0, 10), account_id: "", partner_id: "",
+  });
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+
+  const { data: partners } = useQuery({
+    queryKey: ["partners-min-edit"],
+    queryFn: async (): Promise<Tables<"partners">[]> => {
+      const { data } = await supabase.from("partners").select("*").is("deleted_at", null).order("created_at");
+      return data ?? [];
+    },
+  });
+
+  if (txn && txn.id !== loadedFor) {
+    setLoadedFor(txn.id);
+    setForm({
+      direction: txn.direction as "in" | "out",
+      amount: String(txn.amount ?? ""),
+      category: txn.category ?? "expense",
+      note: txn.note ?? "",
+      date: txn.txn_date,
+      account_id: txn.account_id,
+      partner_id: txn.partner_id ?? "",
+    });
+  }
+
+  const linked = !!txn?.ref_table;
+  const isPartnerTxn = form.category === "capital" || form.category === "drawing";
+
+  const save = useMutation({
+    mutationFn: async () => {
+      if (!txn) return;
+      const { error } = await supabase.from("cash_transactions").update({
+        account_id: form.account_id,
+        direction: form.direction,
+        amount: round3(Number(form.amount) || 0),
+        category: form.category,
+        partner_id: isPartnerTxn ? (form.partner_id || null) : null,
+        note: form.note.trim() || null,
+        txn_date: form.date,
+      }).eq("id", txn.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success(t("common.save"));
+      qc.invalidateQueries({ queryKey: ["banks"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      onClose();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <Dialog open={!!txn} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent onClose={onClose}>
+        <DialogHeader>
+          <DialogTitle>{t("common.edit")} · {t("banks.transactions")}</DialogTitle>
+        </DialogHeader>
+        {txn && (
+          <form onSubmit={(e) => { e.preventDefault(); save.mutate(); }} className="grid grid-cols-2 gap-4">
+            {linked && (
+              <p className="col-span-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+                {t("banks.txnEditLinkedWarning")}
+              </p>
+            )}
+            <div className="space-y-1.5">
+              <Label>{t("banks.account")} *</Label>
+              <Select value={form.account_id} onChange={(e) => setForm({ ...form, account_id: e.target.value })}>
+                {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t("common.date")}</Label>
+              <Input type="date" dir="ltr" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t("banks.type")}</Label>
+              <Select value={form.direction} onChange={(e) => setForm({ ...form, direction: e.target.value as "in" | "out" })}>
+                <option value="out">{t("banks.moneyOut")}</option>
+                <option value="in">{t("banks.moneyIn")}</option>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t("banks.amount")} (JOD) *</Label>
+              <Input required type="number" step="0.001" dir="ltr" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t("assets.category")}</Label>
+              <Select value={form.category} onChange={(e) => {
+                const c = e.target.value;
+                const outCats = ["drawing", "withdrawal", "expense", "fee", "marketing"];
+                const dir: "in" | "out" = c === "capital" || c === "deposit" ? "in" : outCats.includes(c) ? "out" : form.direction;
+                setForm({ ...form, category: c, direction: dir });
+              }}>
+                <option value="expense">Expense</option>
+                <option value="marketing">Marketing / Ads</option>
+                <option value="deposit">Deposit</option>
+                <option value="withdrawal">Withdrawal</option>
+                <option value="fee">Fee</option>
+                <option value="capital">Partner capital (in)</option>
+                <option value="drawing">Partner drawing (out)</option>
+                <option value="adjustment">Adjustment</option>
+              </Select>
+            </div>
+            {isPartnerTxn && (
+              <div className="space-y-1.5">
+                <Label>{t("reports.partner")}</Label>
+                <Select value={form.partner_id} onChange={(e) => setForm({ ...form, partner_id: e.target.value })}>
+                  <option value="">—</option>
+                  {(partners ?? []).map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+                </Select>
+              </div>
+            )}
+            <div className="col-span-2 space-y-1.5">
+              <Label>{t("common.notes")}</Label>
+              <Input value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} />
+            </div>
+            <div className="col-span-2 flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={onClose}>{t("common.cancel")}</Button>
+              <Button type="submit" disabled={save.isPending}>
+                {save.isPending && <Loader2 className="size-4 animate-spin" />}
+                {t("common.save")}
+              </Button>
+            </div>
+          </form>
+        )}
       </DialogContent>
     </Dialog>
   );
