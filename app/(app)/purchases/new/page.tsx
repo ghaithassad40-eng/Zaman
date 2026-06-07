@@ -374,19 +374,22 @@ export default function NewPurchasePage() {
                 {computed.final.map((l) => {
                   const isAssetItem = l.isAsset;
                   return (
-                    <div key={l.key} className={"flex items-start justify-between rounded-md border p-2.5 text-sm " + (isAssetItem ? "border-primary/40 bg-primary/5" : "")}>
-                      <div>
-                        <div className="font-medium">{l.newName || (products ?? []).find((p) => p.id === l.productId)?.name || "—"}</div>
+                    <div key={l.key} className={"flex items-start justify-between gap-3 rounded-md border p-2.5 text-sm " + (isAssetItem ? "border-primary/40 bg-primary/5" : "")}>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 font-medium">
+                          <span className="truncate">{l.assetName || l.newName || (products ?? []).find((p) => p.id === l.productId)?.name || "—"}</span>
+                          {isAssetItem && (
+                            <span className="shrink-0 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-medium text-primary">{t("purchases.asset")}</span>
+                          )}
+                        </div>
                         <div className="text-xs text-muted-foreground">
                           ×{l.qty} · {srcCurrency} {l.unitCostSrc} · {t("purchases.landedUnit")}: {num3(l.landedUnit)}
                           {isAssetItem && <> · {l.depYears} {t("purchases.years")}</>}
                         </div>
                       </div>
-                      {isAssetItem ? (
-                        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">{t("purchases.asset")}</span>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">{formatJOD(l.lineLanded, locale)}</span>
-                      )}
+                      <span className={"shrink-0 text-end font-medium " + (isAssetItem ? "text-primary" : "")}>
+                        {formatJOD(l.lineLanded, locale)}
+                      </span>
                     </div>
                   );
                 })}
@@ -435,6 +438,16 @@ export default function NewPurchasePage() {
                   placeholder={assetLine.newName || (products ?? []).find((p) => p.id === assetLine.productId)?.name || t("purchases.asset")} />
               </div>
               <div className="space-y-1.5">
+                <Label>{t("common.qty")} *</Label>
+                <Input required type="number" min={1} dir="ltr" value={assetLine.qty}
+                  onChange={(e) => updateLine(assetLine.key, { qty: Math.max(1, Number(e.target.value)) })} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>{t("common.cost")} ({srcCurrency}) *</Label>
+                <Input required type="number" step="0.001" min={0} dir="ltr" value={assetLine.unitCostSrc}
+                  onChange={(e) => updateLine(assetLine.key, { unitCostSrc: Number(e.target.value) })} />
+              </div>
+              <div className="space-y-1.5">
                 <Label>{t("purchases.depYears")} *</Label>
                 <Input required type="number" step="0.5" min={0.5} dir="ltr" value={assetLine.depYears}
                   onChange={(e) => updateLine(assetLine.key, { depYears: e.target.value })} />
@@ -462,6 +475,7 @@ export default function NewPurchasePage() {
                       <Row label={t("purchases.assetCost")} value={formatJOD(cost, locale)} />
                       <Row label={t("purchases.monthlyDep")} value={formatJOD(monthly, locale)} />
                       <Row label={t("purchases.annualDep")} value={formatJOD(annual, locale)} />
+                      {cost <= 0 && <p className="mt-2 text-xs text-destructive">{t("purchases.assetCostHint")}</p>}
                     </>
                   );
                 })()}
