@@ -1,13 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import Link from "next/link";
 import {
   Plus, Trash2, Loader2, ArrowLeft, ArrowRight, CheckCircle2, Truck,
-  Receipt, Package, Pencil,
+  Receipt, Package, Pencil, RefreshCw,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/provider";
@@ -21,6 +21,7 @@ import { Select } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatJOD, round3, num3 } from "@/lib/utils";
+import { CURRENCIES, fetchFxRate } from "@/lib/fx";
 
 type Line = {
   key: string;
@@ -77,6 +78,30 @@ export default function NewPurchasePage() {
   const [orderDate, setOrderDate] = useState(today);
   const [srcCurrency, setSrcCurrency] = useState("USD");
   const [fxRate, setFxRate] = useState("0.709");
+  const [fxAsOf, setFxAsOf] = useState<string | null>(null);
+  const [fxBusy, setFxBusy] = useState(false);
+
+  // Fetch a fresh rate the first time the wizard mounts.
+  useEffect(() => {
+    refreshFx(srcCurrency);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function refreshFx(toCurrency: string) {
+    if (!toCurrency || toCurrency === "JOD") {
+      setFxRate("1"); setFxAsOf(null); return;
+    }
+    setFxBusy(true);
+    try {
+      const r = await fetchFxRate(toCurrency, "JOD");
+      setFxRate(String(round3(r.rate)));
+      setFxAsOf(r.asOf ?? null);
+    } catch (e) {
+      toast.error(`FX rate: ${(e as Error).message}`);
+    } finally {
+      setFxBusy(false);
+    }
+  }
   const [paidAccount, setPaidAccount] = useState("");
 
   // Step 2 — items
@@ -243,10 +268,35 @@ export default function NewPurchasePage() {
                   </Select>
                 </Field>
                 <Field label={t("purchases.srcCurrency")}>
-                  <Input dir="ltr" value={srcCurrency} onChange={(e) => setSrcCurrency(e.target.value.toUpperCase())} />
+                  <Select
+                    value={srcCurrency}
+                    onChange={(e) => { setSrcCurrency(e.target.value); refreshFx(e.target.value); }}
+                  >
+                    {CURRENCIES.map((c) => (
+                      <option key={c.code} value={c.code}>{c.code} — {c.name}</option>
+                    ))}
+                  </Select>
                 </Field>
                 <Field label={t("purchases.fxRate")}>
-                  <Input type="number" step="0.0001" dir="ltr" value={fxRate} onChange={(e) => setFxRate(e.target.value)} />
+                  <div className="flex gap-1">
+                    <Input
+                      type="number" step="0.0001" dir="ltr"
+                      value={fxRate}
+                      onChange={(e) => setFxRate(e.target.value)}
+                      placeholder="1 JOD ="
+                    />
+                    <Button
+                      type="button" variant="outline" size="sm"
+                      onClick={() => refreshFx(srcCurrency)}
+                      disabled={fxBusy || srcCurrency === "JOD"}
+                      title={t("purchases.refreshFx")}
+                    >
+                      {fxBusy ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
+                    </Button>
+                  </div>
+                  {fxAsOf && (
+                    <p className="text-xs text-muted-foreground">{t("purchases.fxAsOf")} {fxAsOf}</p>
+                  )}
                 </Field>
               </div>
             </CardContent>
