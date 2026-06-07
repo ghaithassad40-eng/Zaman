@@ -125,10 +125,8 @@ export default function PrintInvoicePage({ params }: { params: Promise<{ id: str
       </div>
 
       <div className="a4-sheet">
-        {/* Background watermark logo */}
-        {company?.logo_url && (
-          <div className="watermark" style={{ backgroundImage: `url(${company.logo_url})` }} />
-        )}
+        {/* Background watermark — always the system Zaman brand mark */}
+        <div className="watermark" style={{ backgroundImage: `url(/brand-watermark.svg)` }} />
 
         <div className="sheet-body">
           {/* Header */}

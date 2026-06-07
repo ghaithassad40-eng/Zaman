@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 120" width="360" height="120" fill="none">
+  <!-- Watch icon -->
+  <g transform="translate(8,30)" stroke="#9a7426" fill="#9a7426">
+    <rect x="26" y="0" width="8" height="7" rx="1.5"/>
+    <rect x="26" y="53" width="8" height="7" rx="1.5"/>
+    <circle cx="30" cy="30" r="20.5" stroke-width="3" fill="none"/>
+    <path d="M30 18v12l8 5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  </g>
+  <!-- Wordmark "ZAMAN" -->
+  <text x="80" y="62" font-family="Inter, Arial, sans-serif" font-weight="800" font-size="42" letter-spacing="6" fill="#9a7426">ZAMAN</text>
+  <!-- Arabic "زمن" -->
+  <text x="80" y="98" font-family="Cairo, 'Segoe UI', sans-serif" font-weight="700" font-size="28" fill="#9a7426">زمن</text>
+</svg>

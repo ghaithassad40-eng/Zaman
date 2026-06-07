@@ -109,9 +109,8 @@ function PrintStatementsInner() {
       </div>
 
       <div className="a4-sheet">
-        {company?.logo_url && (
-          <div className="watermark" style={{ backgroundImage: `url(${company.logo_url})` }} />
-        )}
+        {/* Background watermark — always the system Zaman brand mark */}
+        <div className="watermark" style={{ backgroundImage: `url(/brand-watermark.svg)` }} />
 
         <div className="sheet-body">
           {/* Header */}
