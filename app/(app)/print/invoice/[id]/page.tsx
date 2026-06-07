@@ -89,11 +89,14 @@ export default function PrintInvoicePage({ params }: { params: Promise<{ id: str
         }
         .watermark {
           position: absolute;
-          inset: 0;
+          left: 0;
+          right: 0;
+          bottom: 18%;
+          height: 40%;
           background-repeat: no-repeat;
           background-position: center;
-          background-size: 60% auto;
-          opacity: 0.06;
+          background-size: 80% auto;
+          opacity: 0.10;
           pointer-events: none;
           z-index: 0;
         }

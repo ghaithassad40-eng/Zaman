@@ -82,9 +82,11 @@ function PrintStatementsInner() {
           overflow: hidden;
         }
         .watermark {
-          position: absolute; inset: 0;
+          position: absolute;
+          left: 0; right: 0; bottom: 18%; height: 40%;
           background-repeat: no-repeat; background-position: center;
-          background-size: 55% auto; opacity: 0.05; pointer-events: none; z-index: 0;
+          background-size: 80% auto; opacity: 0.09;
+          pointer-events: none; z-index: 0;
         }
         .a4-sheet > .sheet-body { position: relative; z-index: 1; }
         @media print {
