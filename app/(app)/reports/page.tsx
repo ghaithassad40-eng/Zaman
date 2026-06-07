@@ -95,7 +95,10 @@ export default function ReportsPage() {
   const { data: company } = useCompanySettings();
   const { data: customers } = useCustomers();
 
-  const [gran, setGran] = useState<Gran>("month");
+  // Default to "year" so the current calendar year is selected on first load.
+  // That includes opening-balance historical sales (dated Jan 1) which would
+  // otherwise be hidden if the user landed on the current-month view.
+  const [gran, setGran] = useState<Gran>("year");
   const periods = useMemo(() => buildPeriods(gran, locale), [gran, locale]);
   const [periodValue, setPeriodValue] = useState(periods[0]?.value ?? "");
   const period = periods.find((p) => p.value === periodValue) ?? periods[0];

@@ -36,7 +36,9 @@ function useDashboard() {
     queryKey: ["dashboard"],
     queryFn: async () => {
       const today = new Date().toISOString().slice(0, 10);
-      const since = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
+      // Headline tiles are Year-to-Date so they include opening-balance
+      // historical sales (imported from the products template, dated Jan 1).
+      const since = `${new Date().getFullYear()}-01-01`;
 
       const [sales, inventory, recent, marketing, toPack, fin, hist] = await Promise.all([
         supabase.from("sales").select("total, gross_profit").gte("sale_date", since)
@@ -168,12 +170,12 @@ export default function DashboardPage() {
 
       {/* 30-day performance */}
       <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-muted-foreground">
-        <ArrowUpRight className="size-4" /> {t("dashboard.last30")}
+        <ArrowUpRight className="size-4" /> {t("dashboard.ytd")}
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Kpi icon={TrendingUp} label={t("dashboard.revenue")} value={j(data?.revenue)} sub={t("dashboard.last30short")} tone="primary" loading={isLoading} />
-        <Kpi icon={Coins} label={t("dashboard.profit")} value={j(data?.profit)} sub={t("dashboard.last30short")} tone="green" loading={isLoading} />
-        <Kpi icon={ShoppingBag} label={t("dashboard.orders")} value={data?.orders?.toString()} sub={t("dashboard.last30short")} tone="blue" loading={isLoading} />
+        <Kpi icon={TrendingUp} label={t("dashboard.revenue")} value={j(data?.revenue)} sub={t("dashboard.ytdShort")} tone="primary" loading={isLoading} />
+        <Kpi icon={Coins} label={t("dashboard.profit")} value={j(data?.profit)} sub={t("dashboard.ytdShort")} tone="green" loading={isLoading} />
+        <Kpi icon={ShoppingBag} label={t("dashboard.orders")} value={data?.orders?.toString()} sub={t("dashboard.ytdShort")} tone="blue" loading={isLoading} />
         <Kpi icon={Target} label={t("dashboard.roas")} value={data ? (data.roas != null ? `${data.roas.toFixed(1)}×` : "—") : undefined} sub={t("dashboard.marketing")} tone="amber" loading={isLoading} />
       </div>
 
@@ -195,7 +197,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Kpi icon={Wallet} label={t("banks.expectedTotal")} value={j(data?.cash)} tone="green" loading={isLoading} />
         <Kpi icon={Boxes} label={t("dashboard.stockValue")} value={j(data?.stockValue)} tone="primary" loading={isLoading} />
-        <Kpi icon={Megaphone} label={t("dashboard.marketing")} value={j(data?.marketing30)} sub={t("dashboard.last30short")} tone="amber" loading={isLoading} />
+        <Kpi icon={Megaphone} label={t("dashboard.marketing")} value={j(data?.marketing30)} sub={t("dashboard.ytdShort")} tone="amber" loading={isLoading} />
         <Kpi icon={Landmark} label={t("reports.totalEquity")} value={j(data?.equity)} tone="slate" loading={isLoading} />
       </div>
 
