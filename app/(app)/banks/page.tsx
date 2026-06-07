@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Loader2, Landmark, Wallet, Banknote, Star, ArrowDownLeft, ArrowUpRight, Pencil, Scale, Link2, Check, Trash2, FileText } from "lucide-react";
+import { Plus, Loader2, Landmark, Wallet, Banknote, Users, Star, ArrowDownLeft, ArrowUpRight, Pencil, Scale, Link2, Check, Trash2, FileText } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/provider";
 import { downloadTemplate, type Col } from "@/lib/xlsx-utils";
@@ -38,7 +38,7 @@ type AccountWithTxns = Tables<"accounts"> & {
   cash_transactions: { direction: "in" | "out"; amount: number }[];
 };
 
-const TYPE_ICON = { cash: Banknote, bank: Landmark, wallet: Wallet } as const;
+const TYPE_ICON = { cash: Banknote, bank: Landmark, wallet: Wallet, equity: Users } as const;
 
 function expectedBalance(a: AccountWithTxns): number {
   const net = (a.cash_transactions ?? []).reduce(
@@ -232,7 +232,7 @@ function AddAccountDialog({ open, onClose, hasAccounts }: { open: boolean; onClo
       const { data: userData } = await supabase.auth.getUser();
       const { error } = await supabase.from("accounts").insert({
         name: form.name.trim(),
-        type: form.type as "cash" | "bank" | "wallet",
+        type: form.type as "cash" | "bank" | "wallet" | "equity",
         opening_balance: Number(form.opening_balance) || 0,
         is_default: !hasAccounts, // first account becomes default
         created_by: userData.user?.id,
@@ -265,6 +265,7 @@ function AddAccountDialog({ open, onClose, hasAccounts }: { open: boolean; onClo
               <option value="bank">{t("banks.bank")}</option>
               <option value="cash">{t("banks.cash")}</option>
               <option value="wallet">{t("banks.wallet")}</option>
+              <option value="equity">{t("banks.equity")}</option>
             </Select>
           </div>
           <div className="space-y-1.5">
@@ -424,7 +425,7 @@ function EditAccountDialog({ account, onClose }: { account: AccountWithTxns | nu
         .from("accounts")
         .update({
           name: form.name.trim(),
-          type: form.type as "cash" | "bank" | "wallet",
+          type: form.type as "cash" | "bank" | "wallet" | "equity",
           opening_balance: Number(form.opening_balance) || 0,
           is_default: form.is_default,
         })
@@ -457,6 +458,7 @@ function EditAccountDialog({ account, onClose }: { account: AccountWithTxns | nu
               <option value="bank">{t("banks.bank")}</option>
               <option value="cash">{t("banks.cash")}</option>
               <option value="wallet">{t("banks.wallet")}</option>
+              <option value="equity">{t("banks.equity")}</option>
             </Select>
           </div>
           <div className="space-y-1.5">

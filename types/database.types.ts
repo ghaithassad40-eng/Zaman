@@ -1369,7 +1369,7 @@ export type Database = {
       return_sale: { Args: { p_sale_id: string }; Returns: undefined }
     }
     Enums: {
-      account_type: "cash" | "bank" | "wallet"
+      account_type: "cash" | "bank" | "wallet" | "equity"
       asset_kind: "consumable" | "equipment"
       payment_status: "unpaid" | "partial" | "paid" | "refunded"
       purchase_status: "ordered" | "shipped" | "received" | "cancelled"
