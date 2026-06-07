@@ -18,6 +18,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatJOD, round3, num3 } from "@/lib/utils";
@@ -315,10 +316,18 @@ export default function NewPurchasePage() {
                   <div key={l.key} className={"rounded-md border p-3 " + (l.isAsset ? "border-primary/40 bg-primary/5" : "")}>
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-12">
                       <div className="sm:col-span-5">
-                        <Select value={l.productId} onChange={(e) => updateLine(l.key, { productId: e.target.value })}>
-                          <option value="">+ {t("products.add")}…</option>
-                          {(products ?? []).map((p) => <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>)}
-                        </Select>
+                        <Combobox
+                          value={l.productId}
+                          onChange={(v) => updateLine(l.key, { productId: v })}
+                          placeholder={t("purchases.productPicker")}
+                          clearLabel={`+ ${t("products.add")}…`}
+                          items={(products ?? []).map((p) => ({
+                            value: p.id,
+                            label: p.name,
+                            caption: [p.sku, p.color, p.brand, p.model].filter(Boolean).join(" · "),
+                            search: [p.sku, p.color, p.brand, p.model, p.feature, p.gender, p.name_ar].filter(Boolean).join(" "),
+                          }))}
+                        />
                       </div>
                       <Input className="sm:col-span-2" type="number" min={1} dir="ltr" value={l.qty}
                         onChange={(e) => updateLine(l.key, { qty: Math.max(1, Number(e.target.value)) })} aria-label={t("common.qty")} />

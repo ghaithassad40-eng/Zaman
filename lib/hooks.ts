@@ -23,6 +23,11 @@ export type SellableProduct = {
   sku: string;
   name: string;
   name_ar: string | null;
+  color: string | null;
+  brand: string | null;
+  model: string | null;
+  feature: string | null;
+  gender: string | null;
   image_urls: string[];
   default_selling_price: number | null;
   inventory: { qty_on_hand: number; avg_unit_cost: number } | null;
@@ -37,7 +42,7 @@ export function useSellableProducts() {
       const { data, error } = await supabase
         .from("products")
         .select(
-          "id, sku, name, name_ar, image_urls, default_selling_price, inventory(qty_on_hand, avg_unit_cost)",
+          "id, sku, name, name_ar, color, brand, model, feature, gender, image_urls, default_selling_price, inventory(qty_on_hand, avg_unit_cost)",
         )
         .eq("is_active", true)
         .is("deleted_at", null)

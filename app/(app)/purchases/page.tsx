@@ -359,8 +359,12 @@ function EditPurchaseDialog({ row, onClose }: { row: PurchaseRow | null; onClose
       notes: row.notes ?? "",
     });
   }
-  // Sync items state once they arrive for this row
-  if (row && purItems && (items.length === 0 || items[0]?.id !== purItems[0]?.id) && purItems[0]?.id !== items[0]?.id) {
+  // Sync items state when query returns data for this row. Compare by length
+  // + first id so we re-sync when switching between purchases, but skip when
+  // the user has already loaded the items for this row.
+  const purItemsKey = (purItems ?? []).map((x) => x.id).join("|");
+  const itemsKey = items.map((x) => x.id).join("|");
+  if (row && purItems && purItemsKey !== itemsKey) {
     setItems(
       purItems.map((pi) => ({
         id: pi.id,
@@ -424,7 +428,7 @@ function EditPurchaseDialog({ row, onClose }: { row: PurchaseRow | null; onClose
 
   return (
     <Dialog open={!!row} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent onClose={onClose}>
+      <DialogContent onClose={onClose} className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{t("common.edit")} · {row?.reference || row?.doc_no}</DialogTitle>
         </DialogHeader>
