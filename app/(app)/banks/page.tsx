@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Loader2, Landmark, Wallet, Banknote, Users, Star, ArrowDownLeft, ArrowUpRight, Pencil, Scale, Link2, Check, Trash2, FileText } from "lucide-react";
+import { Plus, Loader2, Landmark, Wallet, Banknote, Users, Star, ArrowDownLeft, ArrowUpRight, Pencil, Scale, Link2, Check, Trash2, FileText, ArrowLeftRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/provider";
 import { downloadTemplate, type Col } from "@/lib/xlsx-utils";
@@ -56,6 +56,7 @@ export default function BanksPage() {
   const [txnAcc, setTxnAcc] = useState<string | null>(null);
   const [editAcc, setEditAcc] = useState<AccountWithTxns | null>(null);
   const [reconcileAcc, setReconcileAcc] = useState<AccountWithTxns | null>(null);
+  const [transferOpen, setTransferOpen] = useState(false);
   const [editTxn, setEditTxn] = useState<Tables<"cash_transactions"> | null>(null);
   const [delBusy, setDelBusy] = useState<string | null>(null);
 
@@ -116,9 +117,14 @@ export default function BanksPage() {
         title={t("banks.title")}
         description={t("banks.subtitle")}
         action={
-          <Button onClick={() => setAddAcc(true)}>
-            <Plus className="size-4" /> {t("banks.addAccount")}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" onClick={() => setTransferOpen(true)} disabled={(data?.accounts.length ?? 0) < 2}>
+              <ArrowLeftRight className="size-4" /> {t("banks.transfer")}
+            </Button>
+            <Button onClick={() => setAddAcc(true)}>
+              <Plus className="size-4" /> {t("banks.addAccount")}
+            </Button>
+          </div>
         }
       />
 
@@ -257,6 +263,7 @@ export default function BanksPage() {
       <EditAccountDialog account={editAcc} onClose={() => setEditAcc(null)} />
       <ReconcileDialog account={reconcileAcc} onClose={() => setReconcileAcc(null)} />
       <EditTxnDialog txn={editTxn} accounts={data?.accounts ?? []} onClose={() => setEditTxn(null)} />
+      <TransferDialog open={transferOpen} accounts={data?.accounts ?? []} onClose={() => setTransferOpen(false)} />
     </>
   );
 }
@@ -895,6 +902,97 @@ function EditTxnDialog({ txn, accounts, onClose }: { txn: Tables<"cash_transacti
             </div>
           </form>
         )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function TransferDialog({ open, accounts, onClose }: { open: boolean; accounts: AccountWithTxns[]; onClose: () => void }) {
+  const { t } = useI18n();
+  const supabase = createClient();
+  const qc = useQueryClient();
+  const today = new Date().toISOString().slice(0, 10);
+  const [form, setForm] = useState({
+    from_account: "",
+    to_account: "",
+    amount: "",
+    date: today,
+    note: "",
+  });
+
+  // Reset when re-opened
+  if (open && !form.from_account && accounts.length >= 2) {
+    setForm((f) => ({ ...f, from_account: accounts[0].id, to_account: accounts[1].id, date: today }));
+  }
+
+  const submit = useMutation({
+    mutationFn: async () => {
+      const amt = Number(form.amount) || 0;
+      if (form.from_account === form.to_account) throw new Error(t("banks.transferSameAccount"));
+      if (amt <= 0) throw new Error(t("banks.transferAmountRequired"));
+      const { error } = await supabase.rpc("transfer_between_accounts", {
+        p_from_account: form.from_account,
+        p_to_account: form.to_account,
+        p_amount: round3(amt),
+        p_date: form.date,
+        p_note: form.note.trim() || undefined,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success(t("banks.transferDone"));
+      qc.invalidateQueries({ queryKey: ["banks"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      setForm({ from_account: "", to_account: "", amount: "", date: today, note: "" });
+      onClose();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent onClose={onClose}>
+        <DialogHeader>
+          <DialogTitle>{t("banks.transfer")}</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={(e) => { e.preventDefault(); submit.mutate(); }} className="grid grid-cols-2 gap-4">
+          <p className="col-span-2 rounded-md border border-blue-200 bg-blue-50 p-2 text-xs text-blue-800">
+            {t("banks.transferNote")}
+          </p>
+          <div className="space-y-1.5">
+            <Label>{t("banks.transferFrom")} *</Label>
+            <Select required value={form.from_account} onChange={(e) => setForm({ ...form, from_account: e.target.value })}>
+              <option value="">—</option>
+              {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>{t("banks.transferTo")} *</Label>
+            <Select required value={form.to_account} onChange={(e) => setForm({ ...form, to_account: e.target.value })}>
+              <option value="">—</option>
+              {accounts.filter((a) => a.id !== form.from_account).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>{t("banks.amount")} (JOD) *</Label>
+            <Input required type="number" step="0.001" min="0.001" dir="ltr" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>{t("common.date")}</Label>
+            <Input type="date" dir="ltr" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+          </div>
+          <div className="col-span-2 space-y-1.5">
+            <Label>{t("common.notes")}</Label>
+            <Input value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} placeholder={t("banks.transferNotePh")} />
+          </div>
+          <div className="col-span-2 flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={onClose}>{t("common.cancel")}</Button>
+            <Button type="submit" disabled={submit.isPending}>
+              {submit.isPending && <Loader2 className="size-4 animate-spin" />}
+              <ArrowLeftRight className="size-4" /> {t("banks.transferDo")}
+            </Button>
+          </div>
+        </form>
       </DialogContent>
     </Dialog>
   );

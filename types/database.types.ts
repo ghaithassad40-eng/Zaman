@@ -1470,6 +1470,16 @@ export type Database = {
         Args: { p_txn: string; p_value: boolean }
         Returns: undefined
       }
+      transfer_between_accounts: {
+        Args: {
+          p_amount: number
+          p_date: string
+          p_from_account: string
+          p_note?: string
+          p_to_account: string
+        }
+        Returns: undefined
+      }
       unmatch_bank_line: { Args: { p_line: string }; Returns: undefined }
     }
     Enums: {
