@@ -7,6 +7,7 @@ import { Boxes, Building2, Search } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/provider";
 import { PageHeader } from "@/components/page-header";
+import { ExportButton } from "@/components/export-button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -62,7 +63,29 @@ export default function FixedAssetsPage() {
 
   return (
     <>
-      <PageHeader title={t("fixedAssets.title")} description={t("fixedAssets.subtitle")} />
+      <PageHeader
+        title={t("fixedAssets.title")}
+        description={t("fixedAssets.subtitle")}
+        action={
+          <ExportButton
+            filename="fixed-assets"
+            rows={filtered}
+            cols={[
+              { header: "Name", accessor: (r) => r.name ?? "" },
+              { header: "Vendor", accessor: (r) => r.vendor_name ?? "" },
+              { header: "Start date", accessor: (r) => r.start_date ?? "" },
+              { header: "Cost (JOD)", accessor: (r) => Number(r.cost ?? 0) },
+              { header: "Salvage value", accessor: (r) => Number(r.salvage_value ?? 0) },
+              { header: "Years", accessor: (r) => Number(r.years ?? 0) },
+              { header: "Months elapsed", accessor: (r) => Number(r.months_elapsed ?? 0) },
+              { header: "Months total", accessor: (r) => Number(r.months_total ?? 0) },
+              { header: "Monthly depreciation", accessor: (r) => Number(r.monthly_depreciation ?? 0) },
+              { header: "Accumulated depreciation", accessor: (r) => Number(r.accumulated_depreciation ?? 0) },
+              { header: "Book value", accessor: (r) => Number(r.book_value ?? 0) },
+            ]}
+          />
+        }
+      />
 
       {/* KPI strip */}
       <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

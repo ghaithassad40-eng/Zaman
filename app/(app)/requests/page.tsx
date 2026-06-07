@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/provider";
 import type { DictKey } from "@/lib/i18n/dictionaries";
 import { PageHeader } from "@/components/page-header";
+import { ExportButton } from "@/components/export-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -126,7 +127,26 @@ export default function RequestsPage() {
 
   return (
     <>
-      <PageHeader title={t("requests.title")} description={t("requests.subtitle")} />
+      <PageHeader
+        title={t("requests.title")}
+        description={t("requests.subtitle")}
+        action={
+          <ExportButton
+            filename="customer-requests"
+            rows={data}
+            cols={[
+              { header: "Date", accessor: (r) => r.created_at?.slice(0, 10) ?? "" },
+              { header: "Status", accessor: (r) => r.status },
+              { header: "Product", accessor: (r) => r.products?.name ?? r.product_name_snapshot },
+              { header: "Customer", accessor: (r) => r.customer_name },
+              { header: "Phone", accessor: (r) => r.customer_phone },
+              { header: "Email", accessor: (r) => r.customer_email ?? "" },
+              { header: "Address", accessor: (r) => r.customer_address ?? "" },
+              { header: "Notes", accessor: (r) => r.notes ?? "" },
+            ]}
+          />
+        }
+      />
 
       <div className="mb-4 flex gap-1 rounded-md border bg-card p-1">
         {(["pending", "confirmed", "rejected"] as const).map((s) => (

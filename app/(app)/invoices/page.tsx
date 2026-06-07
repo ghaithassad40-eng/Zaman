@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/provider";
 import { downloadInvoicePdf, type InvoiceItem } from "@/lib/pdf/invoice";
 import { PageHeader } from "@/components/page-header";
+import { ExportButton } from "@/components/export-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -74,7 +75,28 @@ export default function InvoicesPage() {
 
   return (
     <>
-      <PageHeader title={t("invoices.title")} />
+      <PageHeader
+        title={t("invoices.title")}
+        action={
+          <ExportButton
+            filename="invoices"
+            rows={data}
+            cols={[
+              { header: "Invoice no", accessor: (i) => i.invoice_no },
+              { header: "Customer", accessor: (i) => i.customers?.name ?? "" },
+              { header: "Issue date", accessor: (i) => i.issue_date },
+              { header: "Due date", accessor: (i) => i.due_date ?? "" },
+              { header: "Subtotal", accessor: (i) => Number(i.subtotal) },
+              { header: "Discount", accessor: (i) => Number(i.discount) },
+              { header: "Delivery", accessor: (i) => Number(i.delivery_fee) },
+              { header: "GST rate", accessor: (i) => Number(i.gst_rate) },
+              { header: "GST amount", accessor: (i) => Number(i.gst_amount) },
+              { header: "Total", accessor: (i) => Number(i.total) },
+              { header: "Status", accessor: (i) => i.status },
+            ]}
+          />
+        }
+      />
       <Card>
         <CardContent className="p-0">
           {isLoading ? (

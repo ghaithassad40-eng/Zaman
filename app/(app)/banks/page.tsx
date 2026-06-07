@@ -10,6 +10,7 @@ import { downloadTemplate, type Col } from "@/lib/xlsx-utils";
 import { parseEtihadStatement, type ParsedStatementLine } from "@/lib/etihad-statement";
 import { parseBankStatementFile } from "@/lib/bank-statement";
 import { PageHeader } from "@/components/page-header";
+import { ExportButton } from "@/components/export-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -118,6 +119,20 @@ export default function BanksPage() {
         description={t("banks.subtitle")}
         action={
           <div className="flex flex-wrap items-center gap-2">
+            <ExportButton
+              filename="bank-transactions"
+              rows={data?.recent}
+              cols={[
+                { header: "Date", accessor: (x) => x.txn_date },
+                { header: "Account", accessor: (x) => x.accounts?.name ?? "" },
+                { header: "Direction", accessor: (x) => x.direction },
+                { header: "Amount (JOD)", accessor: (x) => Number(x.amount) },
+                { header: "Category", accessor: (x) => x.category ?? "" },
+                { header: "Note", accessor: (x) => x.note ?? "" },
+                { header: "Linked to", accessor: (x) => x.ref_table ?? "" },
+                { header: "Reconciled", accessor: (x) => x.reconciled },
+              ]}
+            />
             <Button variant="outline" onClick={() => setTransferOpen(true)} disabled={(data?.accounts.length ?? 0) < 2}>
               <ArrowLeftRight className="size-4" /> {t("banks.transfer")}
             </Button>

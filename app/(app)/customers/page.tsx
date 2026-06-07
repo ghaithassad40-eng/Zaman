@@ -9,6 +9,7 @@ import { useI18n } from "@/lib/i18n/provider";
 import { useCustomers, useCompanySettings } from "@/lib/hooks";
 import { downloadCustomerStatement } from "@/lib/statements";
 import { PageHeader } from "@/components/page-header";
+import { ExportButton } from "@/components/export-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -134,9 +135,24 @@ export default function CustomersPage() {
       <PageHeader
         title={t("customers.title")}
         action={
-          <Button onClick={openAdd}>
-            <Plus className="size-4" /> {t("customers.add")}
-          </Button>
+          <div className="flex items-center gap-2">
+            <ExportButton
+              filename="customers"
+              rows={data}
+              cols={[
+                { header: "Name", accessor: (c) => c.name },
+                { header: "Phone", accessor: (c) => c.phone ?? "" },
+                { header: "Instagram", accessor: (c) => c.instagram_handle ?? "" },
+                { header: "City", accessor: (c) => c.city ?? "" },
+                { header: "Address", accessor: (c) => c.address ?? "" },
+                { header: "Notes", accessor: (c) => c.notes ?? "" },
+                { header: "Created", accessor: (c) => c.created_at?.slice(0, 10) ?? "" },
+              ]}
+            />
+            <Button onClick={openAdd}>
+              <Plus className="size-4" /> {t("customers.add")}
+            </Button>
+          </div>
         }
       />
       <Card>

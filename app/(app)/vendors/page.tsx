@@ -20,6 +20,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/provider";
 import { PageHeader } from "@/components/page-header";
+import { ExportButton } from "@/components/export-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -145,9 +146,24 @@ export default function VendorsPage() {
         title={t("vendors.title")}
         description={t("vendors.subtitle")}
         action={
-          <Button onClick={() => setAddOpen(true)}>
-            <Plus className="size-4" /> {t("vendors.add")}
-          </Button>
+          <div className="flex items-center gap-2">
+            <ExportButton
+              filename="vendors"
+              rows={data?.vendors}
+              cols={[
+                { header: "Name", accessor: (v) => v.name },
+                { header: "Kind", accessor: (v) => v.kind },
+                { header: "Phone", accessor: (v) => v.phone ?? "" },
+                { header: "Email", accessor: (v) => v.email ?? "" },
+                { header: "Balance (JOD)", accessor: (v) => Number(v.opening_balance ?? 0) },
+                { header: "Notes", accessor: (v) => v.notes ?? "" },
+                { header: "Active", accessor: (v) => v.is_active },
+              ]}
+            />
+            <Button onClick={() => setAddOpen(true)}>
+              <Plus className="size-4" /> {t("vendors.add")}
+            </Button>
+          </div>
         }
       />
 

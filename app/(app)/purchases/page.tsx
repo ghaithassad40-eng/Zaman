@@ -8,6 +8,7 @@ import { Plus, PackageOpen, PackageCheck, Loader2, Pencil, Trash2 } from "lucide
 import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/provider";
 import { PageHeader } from "@/components/page-header";
+import { ExportButton } from "@/components/export-button";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -178,6 +179,25 @@ export default function PurchasesPage() {
         action={
           <div className="flex flex-wrap items-center gap-2">
             <ImportControls templateName="zaman-purchase-template.xlsx" cols={PUR_COLS} examples={PUR_EXAMPLE} onImport={importPurchase} size="sm" />
+            <ExportButton
+              filename="purchases"
+              rows={data}
+              cols={[
+                { header: "Doc no", accessor: (p) => p.doc_no ?? "" },
+                { header: "Reference", accessor: (p) => p.reference ?? "" },
+                { header: "Vendor", accessor: (p) => p.vendors?.name ?? "" },
+                { header: "Date", accessor: (p) => p.order_date },
+                { header: "Status", accessor: (p) => p.status },
+                { header: "Source currency", accessor: (p) => p.src_currency },
+                { header: "FX rate", accessor: (p) => Number(p.fx_rate) },
+                { header: "Items (JOD)", accessor: (p) => Number(p.items_total) },
+                { header: "Shipping", accessor: (p) => Number(p.shipping_cost) },
+                { header: "Customs", accessor: (p) => Number(p.customs_cost) },
+                { header: "Clearance", accessor: (p) => Number(p.clearance_cost) },
+                { header: "Landed total (JOD)", accessor: (p) => Number(p.total_landed) },
+                { header: "Asset PO", accessor: (p) => p.is_asset },
+              ]}
+            />
             <Link href="/purchases/new" className={buttonVariants()}>
               <Plus className="size-4" /> {t("purchases.add")}
             </Link>

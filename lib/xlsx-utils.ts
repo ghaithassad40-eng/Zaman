@@ -48,3 +48,29 @@ export const numOr = (v: string | undefined, d = 0) => {
   const n = Number(String(v ?? "").replace(/[^\d.\-]/g, ""));
   return Number.isFinite(n) ? n : d;
 };
+
+/** ExportCol describes one column in a downloaded report. `accessor` pulls the
+ *  value out of the row object (any shape) — it may be nested. */
+export type ExportCol<T> = {
+  header: string;
+  accessor: (row: T) => string | number | boolean | null | undefined;
+};
+
+/** Download `rows` as an .xlsx with one sheet. Filename is sanitized and a
+ *  YYYY-MM-DD date is appended so the user can keep multiple exports. */
+export function exportRowsToXlsx<T>(filename: string, cols: ExportCol<T>[], rows: T[]) {
+  const headers = cols.map((c) => c.header);
+  const data = rows.map((r) => cols.map((c) => {
+    const v = c.accessor(r);
+    if (v == null) return "";
+    if (typeof v === "boolean") return v ? "Yes" : "No";
+    return v as string | number;
+  }));
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
+  ws["!cols"] = cols.map((c) => ({ wch: Math.max(12, c.header.length + 2) }));
+  XLSX.utils.book_append_sheet(wb, ws, "Data");
+  const stamp = new Date().toISOString().slice(0, 10);
+  const safe = filename.replace(/[^\w\-]+/g, "_");
+  XLSX.writeFile(wb, `${safe}-${stamp}.xlsx`);
+}

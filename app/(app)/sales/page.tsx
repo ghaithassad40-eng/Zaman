@@ -11,6 +11,7 @@ import { useCustomers } from "@/lib/hooks";
 import { ensureInvoiceForSale } from "@/lib/invoice-actions";
 import { downloadInvoicePdf } from "@/lib/pdf/invoice";
 import { PageHeader } from "@/components/page-header";
+import { ExportButton } from "@/components/export-button";
 import { Stepper } from "@/components/stepper";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -108,9 +109,24 @@ export default function SalesPage() {
       <PageHeader
         title={t("sales.title")}
         action={
-          <Link href="/sell" className={buttonVariants()}>
-            <Plus className="size-4" /> {t("sales.newSale")}
-          </Link>
+          <div className="flex items-center gap-2">
+            <ExportButton
+              filename="sales"
+              rows={filtered}
+              cols={[
+                { header: "Sale no", accessor: (s) => s.sale_no },
+                { header: "Date", accessor: (s) => s.sale_date },
+                { header: "Customer", accessor: (s) => s.customers?.name ?? "" },
+                { header: "Status", accessor: (s) => s.status },
+                { header: "Total (JOD)", accessor: (s) => Number(s.total) },
+                { header: "Gross profit", accessor: (s) => Number(s.gross_profit) },
+                { header: "Items", accessor: (s) => (s.sale_items ?? []).map((it) => it.description ?? it.products?.name ?? "").filter(Boolean).join(" | ") },
+              ]}
+            />
+            <Link href="/sell" className={buttonVariants()}>
+              <Plus className="size-4" /> {t("sales.newSale")}
+            </Link>
+          </div>
         }
       />
       <div className="relative mb-4 max-w-md">

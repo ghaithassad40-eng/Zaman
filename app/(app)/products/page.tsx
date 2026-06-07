@@ -34,6 +34,7 @@ import {
 import { formatJOD, num3, round3 } from "@/lib/utils";
 import type { TablesUpdate } from "@/types/database.types";
 import { ImportControls } from "@/components/import-controls";
+import { ExportButton } from "@/components/export-button";
 import { numOr, type Col } from "@/lib/xlsx-utils";
 
 const PROD_COLS: Col[] = [
@@ -333,6 +334,30 @@ export default function ProductsPage() {
         action={
           <div className="flex flex-wrap items-center gap-2">
             <ImportControls templateName="zaman-products-template.xlsx" cols={PROD_COLS} examples={PROD_EXAMPLE} onImport={importProducts} size="sm" />
+            <ExportButton
+              filename="products"
+              rows={filtered}
+              cols={[
+                { header: "SKU", accessor: (p) => p.sku },
+                { header: "Name", accessor: (p) => p.name },
+                { header: "Name AR", accessor: (p) => p.name_ar ?? "" },
+                { header: "Brand", accessor: (p) => p.brand ?? "" },
+                { header: "Model", accessor: (p) => p.model ?? "" },
+                { header: "Color", accessor: (p) => p.color },
+                { header: "Feature", accessor: (p) => p.feature ?? "" },
+                { header: "Gender", accessor: (p) => p.gender ?? "" },
+                { header: "Watch type", accessor: (p) => p.watch_type ?? "" },
+                { header: "Opening qty", accessor: (p) => p.opening_qty },
+                { header: "Qty on hand", accessor: (p) => p.inventory?.qty_on_hand ?? 0 },
+                { header: "Sold qty", accessor: (p) => p.historical_units_sold },
+                { header: "Actual cost (JOD)", accessor: (p) => p.actual_cost ?? "" },
+                { header: "Avg cost (JOD)", accessor: (p) => p.inventory?.avg_unit_cost ?? "" },
+                { header: "Default selling price", accessor: (p) => p.default_selling_price ?? "" },
+                { header: "Expected selling price", accessor: (p) => p.expected_selling_price ?? "" },
+                { header: "Avg selling price", accessor: (p) => p.avg_selling_price ?? "" },
+                { header: "Active", accessor: (p) => p.is_active },
+              ]}
+            />
             <Button onClick={() => setDialog({ open: true, product: null })}>
               <Plus className="size-4" /> {t("products.add")}
             </Button>
