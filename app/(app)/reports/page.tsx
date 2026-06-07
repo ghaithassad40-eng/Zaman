@@ -417,10 +417,14 @@ export default function ReportsPage() {
                   <div className="text-sm text-muted-foreground">{t("reports.auditorHint")}</div>
                 </div>
               </div>
-              <Button onClick={auditorPdf} disabled={busy === "auditor"}>
-                {busy === "auditor" ? <Loader2 className="size-4 animate-spin" /> : <FileText className="size-4" />}
-                {t("reports.generate")}
-              </Button>
+              <div className="flex gap-2">
+                <Button onClick={() => window.open(`/print/statements?from=${range.from}&to=${range.to}&label=${encodeURIComponent(period.label)}`, "_blank")}>
+                  <Printer className="size-4" /> {t("reports.print")}
+                </Button>
+                <Button variant="outline" onClick={auditorPdf} disabled={busy === "auditor"} title={t("reports.downloadPdf")}>
+                  {busy === "auditor" ? <Loader2 className="size-4 animate-spin" /> : <FileText className="size-4" />}
+                </Button>
+              </div>
             </CardContent>
           </Card>
 
@@ -480,8 +484,11 @@ export default function ReportsPage() {
                           <div className="text-xs text-muted-foreground">{t("reports.netProfit")}</div>
                           <div className="font-medium">{money(Number(c.net_profit ?? 0))}</div>
                         </div>
-                        <Button size="sm" variant="outline" onClick={() => downloadStatements(c.period_from, c.period_to, c.label)}>
-                          <FileText className="size-4" /> {t("reports.statements")}
+                        <Button size="sm" onClick={() => window.open(`/print/statements?from=${c.period_from}&to=${c.period_to}&label=${encodeURIComponent(c.label)}`, "_blank")}>
+                          <Printer className="size-4" /> {t("reports.print")}
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => downloadStatements(c.period_from, c.period_to, c.label)} title={t("reports.downloadPdf")}>
+                          <FileText className="size-4" />
                         </Button>
                         {isAdmin && c.status === "closed" && (
                           <Button size="sm" variant="ghost" disabled={busy === c.id} onClick={() => reopenPeriod(c.id, c.label)}>

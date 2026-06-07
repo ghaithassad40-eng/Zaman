@@ -75,15 +75,10 @@ export default function SalesPage() {
     setBusy(saleId);
     try {
       const bundle = await ensureInvoiceForSale(saleId);
-      try {
-        await downloadInvoicePdf(bundle);
-      } catch (renderErr) {
-        // Invoice row was created — surface a focused message so user knows
-        // the books recorded the invoice even if the PDF render failed.
-        const msg = (renderErr as Error).message ?? "PDF render failed";
-        toast.error(`${t("sales.invoiceSavedPdfFailed")} · ${bundle.invoice.invoice_no} — ${msg}`);
-        return;
-      }
+      // Open the printable HTML view in a new tab — it auto-runs window.print()
+      // so the user lands directly on the print dialog (Ctrl+P fallback to "Save
+      // as PDF" works on every browser).
+      window.open(`/print/invoice/${bundle.invoice.id}`, "_blank");
       toast.success(bundle.invoice.invoice_no);
     } catch (e) {
       const err = e as { message?: string; code?: string; details?: string };
@@ -288,7 +283,7 @@ function FulfillmentDialog({ sale, onClose }: { sale: SaleRow | null; onClose: (
     mutationFn: async () => {
       if (!sale) return;
       const bundle = await ensureInvoiceForSale(sale.id);
-      await downloadInvoicePdf(bundle);
+      window.open(`/print/invoice/${bundle.invoice.id}`, "_blank");
       const { error } = await supabase.from("sales").update({ fulfillment_stage: Math.max(4, stage + 1) }).eq("id", sale.id);
       if (error) throw error;
     },

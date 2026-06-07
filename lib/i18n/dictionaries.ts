@@ -284,6 +284,8 @@ export const dictionaries = {
     "invoices.taxInvoice": "Tax Invoice",
     "invoices.taxNumber": "Tax No.",
     "invoices.download": "Download PDF",
+    "invoices.print": "Print",
+    "reports.downloadPdf": "Download PDF",
     "invoices.billTo": "Bill to",
 
     "customers.title": "Customers",
@@ -951,6 +953,8 @@ export const dictionaries = {
     "invoices.taxInvoice": "فاتورة ضريبية",
     "invoices.taxNumber": "الرقم الضريبي",
     "invoices.download": "تحميل PDF",
+    "invoices.print": "طباعة",
+    "reports.downloadPdf": "تحميل PDF",
     "invoices.billTo": "فاتورة إلى",
 
     "customers.title": "العملاء",

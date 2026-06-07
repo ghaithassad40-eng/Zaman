@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Download, FileText, Loader2 } from "lucide-react";
+import { Download, FileText, Loader2, Printer } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/provider";
 import { downloadInvoicePdf, type InvoiceItem } from "@/lib/pdf/invoice";
@@ -106,14 +106,17 @@ export default function InvoicesPage() {
                     </TableCell>
                     <TableCell className="text-end font-medium">{formatJOD(inv.total, locale)}</TableCell>
                     <TableCell className="text-end">
-                      <Button size="sm" variant="outline" disabled={busy === inv.id} onClick={() => download(inv)}>
-                        {busy === inv.id ? (
-                          <Loader2 className="size-4 animate-spin" />
-                        ) : (
-                          <Download className="size-4" />
-                        )}
-                        {t("invoices.download")}
-                      </Button>
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          size="sm"
+                          onClick={() => window.open(`/print/invoice/${inv.id}`, "_blank")}
+                        >
+                          <Printer className="size-4" /> {t("invoices.print")}
+                        </Button>
+                        <Button size="sm" variant="outline" disabled={busy === inv.id} onClick={() => download(inv)} title={t("invoices.download")}>
+                          {busy === inv.id ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
