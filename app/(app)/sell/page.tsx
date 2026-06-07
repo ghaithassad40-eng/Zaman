@@ -204,7 +204,14 @@ export default function SellPage() {
                         className="group flex flex-col overflow-hidden rounded-lg border bg-card text-start shadow-sm transition hover:border-primary/40 hover:shadow disabled:opacity-50">
                         <div className="flex aspect-square items-center justify-center overflow-hidden bg-muted">
                           {p.image_urls?.[0] ? (
-                            <Image src={p.image_urls[0]} alt={p.name} width={160} height={160} className="size-full object-cover transition group-hover:scale-105" unoptimized />
+                            /* eslint-disable-next-line @next/next/no-img-element */
+                            <img
+                              src={p.image_urls[0]}
+                              alt={p.name}
+                              className="size-full object-cover transition group-hover:scale-105"
+                              referrerPolicy="no-referrer"
+                              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                            />
                           ) : <Watch className="size-8 text-muted-foreground" />}
                         </div>
                         <div className="flex flex-1 flex-col gap-1 p-2.5">

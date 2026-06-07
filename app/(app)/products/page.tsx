@@ -405,13 +405,13 @@ export default function ProductsPage() {
                       <div className="flex items-center gap-3">
                         <div className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted">
                           {p.image_urls?.[0] ? (
-                            <Image
+                            /* eslint-disable-next-line @next/next/no-img-element */
+                            <img
                               src={p.image_urls[0]}
                               alt={p.name}
-                              width={40}
-                              height={40}
                               className="size-10 object-cover"
-                              unoptimized
+                              referrerPolicy="no-referrer"
+                              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                             />
                           ) : (
                             <Watch className="size-5 text-muted-foreground" />
@@ -852,7 +852,14 @@ function ProductDialog({
             <div className="flex flex-wrap gap-2">
               {existingImages.map((url, i) => (
                 <div key={url} className="group relative size-20 overflow-hidden rounded-md border bg-muted">
-                  <Image src={url} alt="" width={80} height={80} className="size-20 object-cover" unoptimized />
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={url}
+                    alt=""
+                    className="size-20 object-cover"
+                    referrerPolicy="no-referrer"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                  />
                   <button
                     type="button"
                     onClick={() => setExistingImages((p) => p.filter((_, idx) => idx !== i))}
@@ -957,7 +964,7 @@ function ImageUrlAdder({ onAdd }: { onAdd: (url: string) => void }) {
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }}
           placeholder="https://example.com/watch.jpg"
         />
-        <Button type="button" variant="outline" size="sm" onClick={add} disabled={!preview}>
+        <Button type="button" variant="outline" size="sm" onClick={add} disabled={!url.trim()}>
           <Plus className="size-4" /> {t("products.addImgUrl")}
         </Button>
       </div>
@@ -968,6 +975,7 @@ function ImageUrlAdder({ onAdd }: { onAdd: (url: string) => void }) {
             src={preview}
             alt=""
             className="size-16 rounded-md border bg-muted object-cover"
+            referrerPolicy="no-referrer"
             onError={() => setError(t("products.imgUrlLoadFail"))}
             onLoad={() => setError(null)}
           />
