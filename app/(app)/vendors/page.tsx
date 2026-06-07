@@ -14,6 +14,8 @@ import {
   Building2,
   ArrowDownLeft,
   ArrowUpRight,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/provider";
@@ -68,8 +70,36 @@ function balanceOf(v: Vendor, txns: Txn[]) {
 export default function VendorsPage() {
   const { t, locale } = useI18n();
   const supabase = createClient();
+  const qc = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
+  const [editVendor, setEditVendor] = useState<Vendor | null>(null);
   const [stmtVendor, setStmtVendor] = useState<Vendor | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  async function remove(v: Vendor) {
+    setBusyId(v.id);
+    try {
+      // Block delete if vendor has any transactions (preserves accounting history).
+      const { count, error: cErr } = await supabase
+        .from("vendor_transactions")
+        .select("id", { count: "exact", head: true })
+        .eq("vendor_id", v.id);
+      if (cErr) throw cErr;
+      if ((count ?? 0) > 0) {
+        toast.error(t("vendors.hasTransactions"));
+        return;
+      }
+      if (!window.confirm(`${t("vendors.deleteConfirm")}\n\n${v.name}`)) return;
+      const { error } = await supabase.from("vendors").update({ deleted_at: new Date().toISOString() }).eq("id", v.id);
+      if (error) throw error;
+      toast.success(t("vendors.deleted"));
+      qc.invalidateQueries({ queryKey: ["vendors"] });
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   const { data, isLoading } = useQuery({
     queryKey: ["vendors"],
@@ -185,14 +215,29 @@ export default function VendorsPage() {
                     </div>
                   </div>
 
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="mt-auto"
-                    onClick={() => setStmtVendor(v)}
-                  >
-                    <FileText className="size-4" /> {t("vendors.statement")}
-                  </Button>
+                  <div className="mt-auto flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => setStmtVendor(v)}
+                    >
+                      <FileText className="size-4" /> {t("vendors.statement")}
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setEditVendor(v)} title={t("common.edit")}>
+                      <Pencil className="size-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-destructive hover:text-destructive"
+                      disabled={busyId === v.id}
+                      onClick={() => remove(v)}
+                      title={t("common.delete")}
+                    >
+                      {busyId === v.id ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             );
@@ -201,6 +246,7 @@ export default function VendorsPage() {
       )}
 
       <AddVendorDialog open={addOpen} onClose={() => setAddOpen(false)} />
+      <EditVendorDialog vendor={editVendor} onClose={() => setEditVendor(null)} />
       <StatementDialog
         vendor={stmtVendor}
         txns={stmtVendor ? txnsByVendor.get(stmtVendor.id) ?? [] : []}
@@ -312,6 +358,128 @@ function AddVendorDialog({ open, onClose }: { open: boolean; onClose: () => void
             </Button>
           </div>
         </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditVendorDialog({ vendor, onClose }: { vendor: Vendor | null; onClose: () => void }) {
+  const { t } = useI18n();
+  const supabase = createClient();
+  const qc = useQueryClient();
+  const [form, setForm] = useState({
+    name: "", name_ar: "", kind: "delivery" as Enums<"vendor_kind">,
+    phone: "", email: "", opening: "", is_default: false, is_active: true,
+  });
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+
+  if (vendor && vendor.id !== loadedFor) {
+    setLoadedFor(vendor.id);
+    setForm({
+      name: vendor.name,
+      name_ar: vendor.name_ar ?? "",
+      kind: vendor.kind,
+      phone: vendor.phone ?? "",
+      email: vendor.email ?? "",
+      opening: String(vendor.opening_balance ?? 0),
+      is_default: vendor.is_default_delivery,
+      is_active: vendor.is_active,
+    });
+  }
+
+  const save = useMutation({
+    mutationFn: async () => {
+      if (!vendor) return;
+      if (!form.name.trim()) throw new Error("Enter a name");
+      const payload = {
+        name: form.name.trim(),
+        name_ar: form.name_ar.trim() || null,
+        kind: form.kind,
+        phone: form.phone.trim() || null,
+        email: form.email.trim() || null,
+        opening_balance: round3(Number(form.opening) || 0),
+        is_default_delivery: form.is_default && form.kind === "delivery",
+        is_active: form.is_active,
+      };
+      // Only one default delivery vendor — clear others first if promoting.
+      if (payload.is_default_delivery && !vendor.is_default_delivery) {
+        await supabase.from("vendors").update({ is_default_delivery: false }).eq("is_default_delivery", true);
+      }
+      const { error } = await supabase.from("vendors").update(payload).eq("id", vendor.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success(t("common.save"));
+      qc.invalidateQueries({ queryKey: ["vendors"] });
+      onClose();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <Dialog open={!!vendor} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent onClose={onClose}>
+        <DialogHeader>
+          <DialogTitle>{t("common.edit")}{vendor ? ` · ${vendor.name}` : ""}</DialogTitle>
+        </DialogHeader>
+        {vendor && (
+          <form onSubmit={(e) => { e.preventDefault(); save.mutate(); }} className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>{t("vendors.name")} *</Label>
+                <Input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>{t("vendors.name")} (AR)</Label>
+                <Input dir="rtl" value={form.name_ar} onChange={(e) => setForm({ ...form, name_ar: e.target.value })} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>{t("vendors.kind")}</Label>
+                <Select value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value as Enums<"vendor_kind"> })}>
+                  <option value="delivery">{t("vendors.kDelivery")}</option>
+                  <option value="service">{t("vendors.kService")}</option>
+                  <option value="supplier">{t("vendors.kSupplier")}</option>
+                  <option value="other">{t("vendors.kOther")}</option>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>{t("vendors.openingBalance")}</Label>
+                <Input type="number" step="0.001" dir="ltr" value={form.opening} onChange={(e) => setForm({ ...form, opening: e.target.value })} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>{t("common.phone")}</Label>
+                <Input dir="ltr" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>{t("common.email")}</Label>
+                <Input type="email" dir="ltr" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+              </div>
+            </div>
+            {form.kind === "delivery" && (
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" className="size-4 accent-[var(--primary)]"
+                  checked={form.is_default} onChange={(e) => setForm({ ...form, is_default: e.target.checked })} />
+                {t("vendors.defaultDelivery")}
+              </label>
+            )}
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" className="size-4 accent-[var(--primary)]"
+                checked={form.is_active} onChange={(e) => setForm({ ...form, is_active: e.target.checked })} />
+              {t("products.active")}
+            </label>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={onClose}>{t("common.cancel")}</Button>
+              <Button type="submit" disabled={save.isPending}>
+                {save.isPending && <Loader2 className="size-4 animate-spin" />}
+                {t("common.save")}
+              </Button>
+            </div>
+          </form>
+        )}
       </DialogContent>
     </Dialog>
   );
