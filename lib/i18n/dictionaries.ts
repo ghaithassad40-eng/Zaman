@@ -136,7 +136,8 @@ export const dictionaries = {
     "products.avgCost": "Avg cost",
     "products.openingQty": "Opening qty",
     "products.actualCost": "Actual cost",
-    "products.soldQty": "Sold qty",
+    "products.soldQty": "Sold qty (historical)",
+    "products.soldQtyHint": "Pre-system sales. Creates a historical sale dated 2026-01-01.",
     "products.avgSellPrice": "Avg selling price",
     "products.active": "Active (available to sell)",
 
@@ -705,7 +706,8 @@ export const dictionaries = {
     "products.avgCost": "متوسط التكلفة",
     "products.openingQty": "الكمية الافتتاحية",
     "products.actualCost": "التكلفة الفعلية",
-    "products.soldQty": "الكمية المباعة",
+    "products.soldQty": "الكمية المباعة (تاريخية)",
+    "products.soldQtyHint": "مبيعات سابقة. تُنشئ بيعاً تاريخياً بتاريخ 2026-01-01.",
     "products.avgSellPrice": "متوسط سعر البيع",
     "products.active": "نشط (متاح للبيع)",
 

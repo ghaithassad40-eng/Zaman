@@ -658,7 +658,9 @@ function ProductDialog({
       const { data: userData } = await supabase.auth.getUser();
 
       const opening = Math.max(0, Math.round(numOr(form.opening)));
+      const sold = Math.max(0, Math.round(numOr(form.sold)));
       const actualCost = form.actual ? numOr(form.actual) : null;
+      const avgSell = form.avgSell ? numOr(form.avgSell) : null;
 
       // Use what the user typed in the Name input. If they didn't type anything,
       // build it from the structured fields. Final fallback: keep the original
@@ -720,9 +722,53 @@ function ProductDialog({
           .select("id")
           .single();
         if (error) throw error;
+
+        // If the user entered pre-system sold qty, create a historical sale dated
+        // 2026-01-01 — same logic the Excel import uses — so revenue + cash flow
+        // through the books and inventory ends at (opening − sold).
+        if (sold > 0) {
+          const sellingPrice = form.price ? Number(form.price) : null;
+          const expectedPrice = form.expected ? Number(form.expected) : null;
+          const unitPrice = (avgSell ?? 0) || sellingPrice || expectedPrice || 0;
+          if (unitPrice > 0) {
+            const cost = actualCost ?? 0;
+            const subtotal = round3(sold * unitPrice);
+            const totalCost = round3(sold * cost);
+            const gp = round3(subtotal - totalCost);
+            const { data: saleNo } = await supabase.rpc("next_doc_no", { p_type: "sale" });
+            const { data: s } = await supabase.from("sales").insert({
+              sale_no: saleNo as string,
+              sale_date: "2026-01-01",
+              customer_id: null,
+              status: "completed",
+              payment_status: "paid",
+              subtotal, discount: 0, delivery_fee: 0, delivery_billed: 0,
+              gst_rate: 0, gst_amount: 0, total: subtotal,
+              total_cost: totalCost, packaging_cost: 0, gross_profit: gp,
+              fulfillment_stage: 6,
+              notes: `Historical (imported) — ${form.sku.trim()}`,
+              created_by: userData.user?.id,
+            }).select("id").single();
+            if (s) {
+              await supabase.from("sale_items").insert({
+                sale_id: s.id, product_id: created.id, description: finalName,
+                qty: sold, unit_price: unitPrice, line_total: subtotal, unit_cost: cost,
+              });
+              const { data: acc } = await supabase.rpc("default_account_id");
+              if (acc) {
+                await supabase.from("cash_transactions").insert({
+                  account_id: acc as string, txn_date: "2026-01-01", direction: "in",
+                  amount: subtotal, category: "sale", ref_table: "sales", ref_id: s.id,
+                  note: `${saleNo} (historical)`, created_by: userData.user?.id,
+                });
+              }
+            }
+          }
+        }
+
         await supabase.from("inventory").insert({
           product_id: created.id,
-          qty_on_hand: opening,
+          qty_on_hand: Math.max(0, opening - sold),
           avg_unit_cost: actualCost ?? 0,
         });
       }
@@ -847,6 +893,19 @@ function ProductDialog({
             <Label>{t("products.actualCost")} (JOD)</Label>
             <Input type="number" step="0.001" dir="ltr" value={form.actual} onChange={(e) => setForm({ ...form, actual: e.target.value })} />
           </div>
+          {!isEdit && (
+            <>
+              <div className="space-y-1.5">
+                <Label>{t("products.soldQty")}</Label>
+                <Input type="number" dir="ltr" value={form.sold} onChange={(e) => setForm({ ...form, sold: e.target.value })} placeholder="0" />
+                <p className="text-xs text-muted-foreground">{t("products.soldQtyHint")}</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label>{t("products.avgSellPrice")} (JOD)</Label>
+                <Input type="number" step="0.001" dir="ltr" value={form.avgSell} onChange={(e) => setForm({ ...form, avgSell: e.target.value })} placeholder={form.price || form.expected || "0.000"} />
+              </div>
+            </>
+          )}
           <div className="space-y-1.5 sm:col-span-2">
             <Label>{t("products.photos")}</Label>
             <div className="flex flex-wrap gap-2">
