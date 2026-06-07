@@ -755,6 +755,69 @@ export type Database = {
         }
         Relationships: []
       }
+      product_requests: {
+        Row: {
+          confirmed_at: string | null
+          confirmed_by: string | null
+          created_at: string
+          customer_address: string | null
+          customer_email: string | null
+          customer_name: string
+          customer_phone: string
+          id: string
+          notes: string | null
+          product_id: string | null
+          product_name_snapshot: string
+          sale_id: string | null
+          status: string
+        }
+        Insert: {
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          customer_address?: string | null
+          customer_email?: string | null
+          customer_name: string
+          customer_phone: string
+          id?: string
+          notes?: string | null
+          product_id?: string | null
+          product_name_snapshot: string
+          sale_id?: string | null
+          status?: string
+        }
+        Update: {
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          customer_address?: string | null
+          customer_email?: string | null
+          customer_name?: string
+          customer_phone?: string
+          id?: string
+          notes?: string | null
+          product_id?: string | null
+          product_name_snapshot?: string
+          sale_id?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_requests_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_requests_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           actual_cost: number | null
@@ -784,6 +847,7 @@ export type Database = {
           source_url: string | null
           updated_at: string
           updated_by: string | null
+          watch_type: string | null
         }
         Insert: {
           actual_cost?: number | null
@@ -813,6 +877,7 @@ export type Database = {
           source_url?: string | null
           updated_at?: string
           updated_by?: string | null
+          watch_type?: string | null
         }
         Update: {
           actual_cost?: number | null
@@ -842,6 +907,7 @@ export type Database = {
           source_url?: string | null
           updated_at?: string
           updated_by?: string | null
+          watch_type?: string | null
         }
         Relationships: []
       }

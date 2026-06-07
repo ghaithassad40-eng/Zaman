@@ -66,6 +66,7 @@ type ProductRow = {
   model: string | null;
   feature: string | null;
   gender: string | null;
+  watch_type: string | null;
   description: string | null;
   source_url: string | null;
   image_urls: string[];
@@ -97,7 +98,7 @@ function useProducts() {
         supabase
           .from("products")
           .select(
-            "id, sku, name, name_ar, color, brand, model, feature, gender, description, source_url, image_urls, default_selling_price, expected_selling_price, opening_qty, actual_cost, avg_selling_price, historical_units_sold, is_active, inventory(qty_on_hand, avg_unit_cost)",
+            "id, sku, name, name_ar, color, brand, model, feature, gender, watch_type, description, source_url, image_urls, default_selling_price, expected_selling_price, opening_qty, actual_cost, avg_selling_price, historical_units_sold, is_active, inventory(qty_on_hand, avg_unit_cost)",
           )
           .is("deleted_at", null)
           .order("created_at", { ascending: false }),
@@ -605,6 +606,7 @@ function ProductDialog({
     color: "",
     feature: "",
     gender: "",
+    watch_type: "",
     description: "",
     source_url: "",
     price: "",
@@ -632,6 +634,7 @@ function ProductDialog({
       color: product?.color ?? "",
       feature: product?.feature ?? "",
       gender: product?.gender ?? "",
+      watch_type: product?.watch_type ?? "",
       description: product?.description ?? "",
       source_url: product?.source_url ?? "",
       price: product?.default_selling_price != null ? String(product.default_selling_price) : "",
@@ -685,6 +688,7 @@ function ProductDialog({
           model: form.model.trim() || null,
           feature: form.feature.trim() || null,
           gender: form.gender.trim() || null,
+          watch_type: form.watch_type.trim() || null,
           description: form.description.trim() || null,
           source_url: form.source_url.trim() || null,
           image_urls: imageUrls,
@@ -836,9 +840,19 @@ function ProductDialog({
             <Label>{t("products.gender")}</Label>
             <Select value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })}>
               <option value="">—</option>
-              <option value="Men">Men</option>
-              <option value="Women">Women</option>
-              <option value="Unisex">Unisex</option>
+              <option value="men">Men</option>
+              <option value="women">Women</option>
+              <option value="unisex">Unisex</option>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>{t("products.watchType")}</Label>
+            <Select value={form.watch_type} onChange={(e) => setForm({ ...form, watch_type: e.target.value })}>
+              <option value="">—</option>
+              <option value="battery">{t("shop.battery")}</option>
+              <option value="automatic">{t("shop.automatic")}</option>
+              <option value="smartwatch">{t("shop.smartwatch")}</option>
+              <option value="other">{t("shop.otherType")}</option>
             </Select>
           </div>
           <div className="space-y-1.5 sm:col-span-2">
