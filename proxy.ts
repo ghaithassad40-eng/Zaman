@@ -7,10 +7,21 @@ import type { Database } from "@/types/database.types";
  * on every request and guards the authenticated app routes.
  */
 export async function proxy(request: NextRequest) {
-  // Public-shop subdomain: rewrite shop.<anything> → /shop[/...]. Auth check is
+  // Public-shop host: rewrite the catalogue domain → /shop[/...]. Auth check is
   // skipped for these requests so anon visitors can browse the catalogue.
+  // Matches two patterns:
+  //   1. Any subdomain that starts with "shop." (e.g. shop.zamanwatch.jo)
+  //   2. Any host explicitly listed in NEXT_PUBLIC_CATALOGUE_HOSTS (e.g.
+  //      shop-zaman-jo.com) — comma-separated, case-insensitive.
   const host = (request.headers.get("host") ?? "").toLowerCase();
-  const isShopSubdomain = host.startsWith("shop.");
+  const explicitHosts = (process.env.NEXT_PUBLIC_CATALOGUE_HOSTS ?? "shop-zaman-jo.com")
+    .toLowerCase()
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const hostWithoutPort = host.split(":")[0];
+  const isShopSubdomain = host.startsWith("shop.")
+    || explicitHosts.includes(hostWithoutPort);
   const isShopPath = request.nextUrl.pathname === "/shop" || request.nextUrl.pathname.startsWith("/shop/");
   if (isShopSubdomain) {
     if (!isShopPath) {
