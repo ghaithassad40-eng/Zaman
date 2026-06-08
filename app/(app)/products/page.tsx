@@ -204,13 +204,76 @@ export default function ProductsPage() {
       const avgSell = numOr(r.avg_selling_price);
       const sellingPrice = r.selling_price ? numOr(r.selling_price) : null;
       const expectedPrice = r.expected_price ? numOr(r.expected_price) : null;
-      const { data: prod, error } = await supabase
+      const colorTrimmed = (r.color ?? "").trim();
+
+      // Match key for merging: (sku, color). Different color = different
+      // variant; same sku + same color = merge into existing row.
+      const { data: existing } = await supabase
         .from("products")
-        .upsert(
-          {
-            sku: r.sku,
+        .select("id, opening_qty, actual_cost, default_selling_price, expected_selling_price, avg_selling_price")
+        .eq("sku", r.sku.trim())
+        .eq("color", colorTrimmed)
+        .is("deleted_at", null)
+        .limit(1)
+        .maybeSingle();
+
+      let prodId: string;
+      let mergedActualCost = actualCost;
+
+      if (existing) {
+        // MERGE — accumulate qty, weighted-average cost (by qty), simple
+        // average of selling prices. New value wins if the existing is null.
+        const oldQty = Number(existing.opening_qty ?? 0);
+        const oldCost = Number(existing.actual_cost ?? 0);
+        const totalQty = oldQty + opening;
+        // Weighted-average cost by qty. Falls back to whichever side has data.
+        if (totalQty > 0 && oldCost > 0 && actualCost > 0) {
+          mergedActualCost = round3((oldQty * oldCost + opening * actualCost) / totalQty);
+        } else if (actualCost > 0) {
+          mergedActualCost = actualCost;
+        } else if (oldCost > 0) {
+          mergedActualCost = oldCost;
+        } else {
+          mergedActualCost = 0;
+        }
+        const avgIfBoth = (a: number, b: number) => round3((a + b) / 2);
+        const mergedDefault = sellingPrice != null && Number(existing.default_selling_price ?? 0) > 0
+          ? avgIfBoth(Number(existing.default_selling_price), sellingPrice)
+          : (sellingPrice ?? existing.default_selling_price);
+        const mergedExpected = expectedPrice != null && Number(existing.expected_selling_price ?? 0) > 0
+          ? avgIfBoth(Number(existing.expected_selling_price), expectedPrice)
+          : (expectedPrice ?? existing.expected_selling_price);
+        const mergedAvg = avgSell > 0 && Number(existing.avg_selling_price ?? 0) > 0
+          ? avgIfBoth(Number(existing.avg_selling_price), avgSell)
+          : (avgSell > 0 ? avgSell : existing.avg_selling_price);
+
+        const { error: uErr } = await supabase
+          .from("products")
+          .update({
             name: derivedName,
-            color: (r.color ?? "").trim(),
+            brand: r.brand || null,
+            model: r.model || null,
+            feature: r.feature || null,
+            gender: r.gender || null,
+            description: r.description || null,
+            opening_qty: totalQty,
+            actual_cost: mergedActualCost > 0 ? mergedActualCost : null,
+            avg_selling_price: mergedAvg,
+            default_selling_price: mergedDefault,
+            expected_selling_price: mergedExpected,
+            updated_by: userData.user?.id,
+          })
+          .eq("id", existing.id);
+        if (uErr) { errors.push(`${r.sku}: ${uErr.message}`); continue; }
+        prodId = existing.id;
+      } else {
+        // NEW variant
+        const { data: ins, error: iErr } = await supabase
+          .from("products")
+          .insert({
+            sku: r.sku.trim(),
+            name: derivedName,
+            color: colorTrimmed,
             brand: r.brand || null,
             model: r.model || null,
             feature: r.feature || null,
@@ -225,32 +288,25 @@ export default function ProductsPage() {
             default_selling_price: sellingPrice,
             expected_selling_price: expectedPrice,
             created_by: userData.user?.id,
-          },
-          { onConflict: "sku,color" },
-        )
-        .select("id")
-        .single();
-      if (error || !prod) { errors.push(`${r.sku}: ${error?.message ?? "failed"}`); continue; }
-
-      // Idempotent re-import: wipe any prior historical sales for this product so
-      // re-uploading the same template doesn't duplicate revenue/cash.
-      const { data: priorHist } = await supabase
-        .from("sales").select("id")
-        .like("notes", `Historical (imported) — ${r.sku}%`);
-      if (priorHist && priorHist.length > 0) {
-        const ids = priorHist.map((x) => x.id);
-        await supabase.from("cash_transactions").delete().eq("ref_table", "sales").in("ref_id", ids);
-        await supabase.from("sale_items").delete().in("sale_id", ids);
-        await supabase.from("sales").delete().in("id", ids);
+          })
+          .select("id")
+          .single();
+        if (iErr || !ins) { errors.push(`${r.sku}: ${iErr?.message ?? "failed"}`); continue; }
+        prodId = ins.id;
       }
+      // For downstream code that referenced `prod.id` / `actualCost` directly.
+      const prod = { id: prodId };
+      const effectiveCost = mergedActualCost;
 
       // Convert historical sold qty into a real sale dated 2026-01-01 so it flows
-      // through Revenue, Profit, P&L, and the auditor's report.
+      // through Revenue, Profit, P&L, and the auditor's report. With the merge
+      // semantics, each import adds a new historical sale (never wipes prior ones)
+      // so re-uploading the same file is no longer idempotent — it accumulates.
       if (sold > 0) {
         const unitPrice = avgSell || sellingPrice || expectedPrice || 0;
         if (unitPrice > 0) {
           const subtotal = round3(sold * unitPrice);
-          const totalCost = round3(sold * actualCost);
+          const totalCost = round3(sold * effectiveCost);
           const gp = round3(subtotal - totalCost);
           const { data: saleNo } = await supabase.rpc("next_doc_no", { p_type: "sale" });
           const { data: s } = await supabase.from("sales").insert({
@@ -269,7 +325,7 @@ export default function ProductsPage() {
           if (s) {
             await supabase.from("sale_items").insert({
               sale_id: s.id, product_id: prod.id, description: derivedName,
-              qty: sold, unit_price: unitPrice, line_total: subtotal, unit_cost: actualCost,
+              qty: sold, unit_price: unitPrice, line_total: subtotal, unit_cost: effectiveCost,
             });
             const { data: acc } = await supabase.rpc("default_account_id");
             if (acc) {
@@ -283,16 +339,19 @@ export default function ProductsPage() {
         }
       }
 
-      // Inventory: qty_on_hand = opening_qty − all non-cancelled sales for this product.
-      // Read live so it reflects both the historical sale we just (re)created and any
-      // real in-system sales since.
+      // Inventory: qty_on_hand = (merged) opening_qty − all non-cancelled sales
+      // for this product. Read live so it covers historicals + any real sales.
+      // avg_unit_cost on inventory uses the merged cost.
       const { data: salesAgg } = await supabase
         .from("sale_items").select("qty, sales!inner(status,deleted_at)")
         .eq("product_id", prod.id).is("sales.deleted_at", null).not("sales.status", "in", "(cancelled,returned)");
       const totalSold = (salesAgg ?? []).reduce((s, x) => s + Number(x.qty), 0);
-      const finalQty = Math.max(0, opening - totalSold);
+      const { data: prodNow } = await supabase
+        .from("products").select("opening_qty").eq("id", prod.id).maybeSingle();
+      const effectiveOpening = Number(prodNow?.opening_qty ?? opening);
+      const finalQty = Math.max(0, effectiveOpening - totalSold);
       await supabase.from("inventory").upsert(
-        { product_id: prod.id, qty_on_hand: finalQty, avg_unit_cost: actualCost },
+        { product_id: prod.id, qty_on_hand: finalQty, avg_unit_cost: effectiveCost > 0 ? effectiveCost : undefined },
         { onConflict: "product_id" },
       );
       created++;
