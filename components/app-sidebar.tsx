@@ -16,6 +16,7 @@ import {
   HandCoins,
   Building2,
   Inbox,
+  Gift,
 } from "lucide-react";
 import { Brand } from "@/components/brand";
 import { useI18n } from "@/lib/i18n/provider";
@@ -33,6 +34,7 @@ const NAV: { href: string; key: DictKey; icon: React.ElementType }[] = [
   { href: "/fixed-assets", key: "nav.fixedAssets", icon: Building2 },
   { href: "/reports", key: "nav.reports", icon: BarChart3 },
   { href: "/dividends", key: "nav.dividends", icon: HandCoins },
+  { href: "/partner-withdraw", key: "nav.partnerWithdraw", icon: Gift },
   { href: "/analytics", key: "nav.analytics", icon: LineChart },
   { href: "/customers", key: "nav.customers", icon: Users },
   { href: "/settings", key: "nav.settings", icon: Settings },

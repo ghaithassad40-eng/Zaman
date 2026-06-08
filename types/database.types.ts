@@ -1523,6 +1523,16 @@ export type Database = {
       get_financials: { Args: { p_from: string; p_to: string }; Returns: Json }
       is_admin_partner: { Args: never; Returns: boolean }
       is_partner: { Args: never; Returns: boolean }
+      issue_to_partner: {
+        Args: {
+          p_account_id: string
+          p_date: string
+          p_items: Json
+          p_note?: string
+          p_partner_id: string
+        }
+        Returns: string
+      }
       match_bank_line: {
         Args: { p_line: string; p_txn: string }
         Returns: undefined
