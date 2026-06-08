@@ -14,7 +14,7 @@ export async function proxy(request: NextRequest) {
   //   2. Any host explicitly listed in NEXT_PUBLIC_CATALOGUE_HOSTS (e.g.
   //      shop-zaman-jo.com) — comma-separated, case-insensitive.
   const host = (request.headers.get("host") ?? "").toLowerCase();
-  const explicitHosts = (process.env.NEXT_PUBLIC_CATALOGUE_HOSTS ?? "shop-zaman-jo.com")
+  const explicitHosts = (process.env.NEXT_PUBLIC_CATALOGUE_HOSTS ?? "")
     .toLowerCase()
     .split(",")
     .map((s) => s.trim())
