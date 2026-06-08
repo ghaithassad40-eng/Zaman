@@ -206,6 +206,7 @@ export type Database = {
           currency: string
           default_delivery_fee: number
           email: string | null
+          facebook_url: string | null
           gst_rate: number
           id: string
           import_api_key: string | null
@@ -220,8 +221,10 @@ export type Database = {
           tax_number: string | null
           terms_extra_ar: string | null
           terms_extra_en: string | null
+          tiktok_url: string | null
           updated_at: string
           warranty_months: number
+          whatsapp_number: string | null
         }
         Insert: {
           address?: string | null
@@ -236,6 +239,7 @@ export type Database = {
           currency?: string
           default_delivery_fee?: number
           email?: string | null
+          facebook_url?: string | null
           gst_rate?: number
           id?: string
           import_api_key?: string | null
@@ -250,8 +254,10 @@ export type Database = {
           tax_number?: string | null
           terms_extra_ar?: string | null
           terms_extra_en?: string | null
+          tiktok_url?: string | null
           updated_at?: string
           warranty_months?: number
+          whatsapp_number?: string | null
         }
         Update: {
           address?: string | null
@@ -266,6 +272,7 @@ export type Database = {
           currency?: string
           default_delivery_fee?: number
           email?: string | null
+          facebook_url?: string | null
           gst_rate?: number
           id?: string
           import_api_key?: string | null
@@ -280,8 +287,10 @@ export type Database = {
           tax_number?: string | null
           terms_extra_ar?: string | null
           terms_extra_en?: string | null
+          tiktok_url?: string | null
           updated_at?: string
           warranty_months?: number
+          whatsapp_number?: string | null
         }
         Relationships: []
       }
@@ -823,6 +832,50 @@ export type Database = {
             columns: ["sale_id"]
             isOneToOne: false
             referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_reviews: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          comment: string | null
+          created_at: string
+          customer_name: string
+          id: string
+          product_id: string | null
+          rating: number
+          status: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          comment?: string | null
+          created_at?: string
+          customer_name: string
+          id?: string
+          product_id?: string | null
+          rating: number
+          status?: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          comment?: string | null
+          created_at?: string
+          customer_name?: string
+          id?: string
+          product_id?: string | null
+          rating?: number
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_reviews_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
             referencedColumns: ["id"]
           },
         ]

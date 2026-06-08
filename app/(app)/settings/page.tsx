@@ -42,6 +42,9 @@ export default function SettingsPage() {
     gst_rate: "16",
     default_delivery_fee: "2",
     instagram_handle: "",
+    whatsapp_number: "",
+    facebook_url: "",
+    tiktok_url: "",
     phone: "",
     email: "",
     address: "",
@@ -66,6 +69,9 @@ export default function SettingsPage() {
         gst_rate: String(settings.gst_rate ?? 16),
         default_delivery_fee: String(settings.default_delivery_fee ?? 2),
         instagram_handle: settings.instagram_handle ?? "",
+        whatsapp_number: settings.whatsapp_number ?? "",
+        facebook_url: settings.facebook_url ?? "",
+        tiktok_url: settings.tiktok_url ?? "",
         phone: settings.phone ?? "",
         email: settings.email ?? "",
         address: settings.address ?? "",
@@ -108,6 +114,9 @@ export default function SettingsPage() {
           gst_rate: Number(form.gst_rate),
           default_delivery_fee: Number(form.default_delivery_fee),
           instagram_handle: form.instagram_handle || null,
+          whatsapp_number: form.whatsapp_number.trim() || null,
+          facebook_url: form.facebook_url.trim() || null,
+          tiktok_url: form.tiktok_url.trim() || null,
           phone: form.phone || null,
           email: form.email || null,
           address: form.address || null,
@@ -159,7 +168,16 @@ export default function SettingsPage() {
                 <Input dir="ltr" value={form.tax_number} onChange={(e) => setForm({ ...form, tax_number: e.target.value })} />
               </Field>
               <Field label={t("customers.instagram")}>
-                <Input dir="ltr" value={form.instagram_handle} onChange={(e) => setForm({ ...form, instagram_handle: e.target.value })} />
+                <Input dir="ltr" value={form.instagram_handle} onChange={(e) => setForm({ ...form, instagram_handle: e.target.value })} placeholder="@yourhandle" />
+              </Field>
+              <Field label={t("settings.whatsappNumber")}>
+                <Input dir="ltr" value={form.whatsapp_number} onChange={(e) => setForm({ ...form, whatsapp_number: e.target.value })} placeholder="+962XXXXXXXXX" />
+              </Field>
+              <Field label={t("settings.facebookUrl")}>
+                <Input dir="ltr" value={form.facebook_url} onChange={(e) => setForm({ ...form, facebook_url: e.target.value })} placeholder="https://facebook.com/…" />
+              </Field>
+              <Field label={t("settings.tiktokUrl")}>
+                <Input dir="ltr" value={form.tiktok_url} onChange={(e) => setForm({ ...form, tiktok_url: e.target.value })} placeholder="https://tiktok.com/@…" />
               </Field>
               <Field label={t("settings.gstRate")}>
                 <Input type="number" step="0.01" dir="ltr" value={form.gst_rate} onChange={(e) => setForm({ ...form, gst_rate: e.target.value })} />
