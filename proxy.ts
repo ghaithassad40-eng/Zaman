@@ -20,8 +20,16 @@ export async function proxy(request: NextRequest) {
     .map((s) => s.trim())
     .filter(Boolean);
   const hostWithoutPort = host.split(":")[0];
+  // Match the apex AND the www. version of every configured host so visitors
+  // who land on www.shop-zaman-jo.com (after the Vercel 308 from the apex)
+  // also see the catalogue instead of getting punted to the auth gate.
+  const hostMatchesCatalogue = explicitHosts.some((h) => {
+    return hostWithoutPort === h
+      || hostWithoutPort === `www.${h}`
+      || (h.startsWith("www.") && hostWithoutPort === h.slice(4));
+  });
   const isShopSubdomain = host.startsWith("shop.")
-    || explicitHosts.includes(hostWithoutPort);
+    || hostMatchesCatalogue;
   const isShopPath = request.nextUrl.pathname === "/shop" || request.nextUrl.pathname.startsWith("/shop/");
   if (isShopSubdomain) {
     if (!isShopPath) {
