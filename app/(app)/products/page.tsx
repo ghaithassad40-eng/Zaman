@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Loader2, Watch, Upload, Search, Pencil, X, SlidersHorizontal, Trash2 } from "lucide-react";
+import { Plus, Loader2, Watch, Upload, Search, Pencil, X, SlidersHorizontal, Trash2, RotateCcw } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/provider";
 import { PageHeader } from "@/components/page-header";
@@ -400,6 +400,20 @@ export default function ProductsPage() {
         description={t("products.import")}
         action={
           <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                const { data: rows, error } = await supabase.rpc("recompute_inventory", { p_product_id: undefined });
+                if (error) { toast.error(error.message); return; }
+                const fixed = (rows ?? []).length;
+                toast.success(fixed > 0 ? `Recomputed ${fixed} product(s)` : "All on-hand quantities already match");
+                qc.invalidateQueries({ queryKey: ["products"] });
+                qc.invalidateQueries({ queryKey: ["sellable_products"] });
+              }}
+            >
+              <RotateCcw className="size-4" /> {t("products.recomputeOnHand")}
+            </Button>
             <ImportControls templateName="zaman-products-template.xlsx" cols={PROD_COLS} examples={PROD_EXAMPLE} onImport={importProducts} size="sm" />
             <ExportButton
               filename="products"

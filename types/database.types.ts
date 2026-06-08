@@ -1547,6 +1547,15 @@ export type Database = {
         Returns: undefined
       }
       receive_purchase: { Args: { p_purchase_id: string }; Returns: undefined }
+      recompute_inventory: {
+        Args: { p_product_id?: string }
+        Returns: {
+          after_qty: number
+          before_qty: number
+          product_id: string
+          sku: string
+        }[]
+      }
       recompute_packaging_cost: { Args: never; Returns: undefined }
       reopen_fiscal_year: { Args: { p_id: string }; Returns: undefined }
       return_sale: { Args: { p_sale_id: string }; Returns: undefined }
