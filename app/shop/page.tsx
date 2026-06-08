@@ -86,6 +86,7 @@ export default function ShopPage() {
           .from("products")
           .select("id, name, name_ar, brand, model, color, gender, watch_type, image_urls, default_selling_price, expected_selling_price, description, inventory(qty_on_hand)")
           .eq("is_active", true)
+          .eq("visible_on_shop", true)
           .is("deleted_at", null)
           .order("created_at", { ascending: false }),
         supabase.from("v_shop_availability").select("product_id, available"),

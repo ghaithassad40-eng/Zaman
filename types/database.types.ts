@@ -940,6 +940,7 @@ export type Database = {
           source_url: string | null
           updated_at: string
           updated_by: string | null
+          visible_on_shop: boolean
           watch_type: string | null
         }
         Insert: {
@@ -970,6 +971,7 @@ export type Database = {
           source_url?: string | null
           updated_at?: string
           updated_by?: string | null
+          visible_on_shop?: boolean
           watch_type?: string | null
         }
         Update: {
@@ -1000,6 +1002,7 @@ export type Database = {
           source_url?: string | null
           updated_at?: string
           updated_by?: string | null
+          visible_on_shop?: boolean
           watch_type?: string | null
         }
         Relationships: []

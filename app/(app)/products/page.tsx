@@ -79,6 +79,7 @@ type ProductRow = {
   avg_selling_price: number | null;
   historical_units_sold: number;
   is_active: boolean;
+  visible_on_shop: boolean;
   inventory: { qty_on_hand: number; avg_unit_cost: number } | null;
 };
 
@@ -100,7 +101,7 @@ function useProducts() {
         supabase
           .from("products")
           .select(
-            "id, sku, name, name_ar, color, brand, model, feature, gender, watch_type, description, source_url, image_urls, default_selling_price, expected_selling_price, opening_qty, actual_cost, avg_selling_price, historical_units_sold, is_active, inventory(qty_on_hand, avg_unit_cost)",
+            "id, sku, name, name_ar, color, brand, model, feature, gender, watch_type, description, source_url, image_urls, default_selling_price, expected_selling_price, opening_qty, actual_cost, avg_selling_price, historical_units_sold, is_active, visible_on_shop, inventory(qty_on_hand, avg_unit_cost)",
           )
           .is("deleted_at", null)
           .order("created_at", { ascending: false }),
@@ -444,6 +445,7 @@ export default function ProductsPage() {
                 { header: "Expected selling price", accessor: (p) => p.expected_selling_price ?? "" },
                 { header: "Avg selling price", accessor: (p) => p.avg_selling_price ?? "" },
                 { header: "Active", accessor: (p) => p.is_active },
+                { header: "On shop", accessor: (p) => p.visible_on_shop },
               ]}
             />
             <Button onClick={() => setDialog({ open: true, product: null })}>
@@ -538,6 +540,7 @@ export default function ProductsPage() {
                           <div className="flex items-center gap-1.5">
                             <span className="truncate font-medium">{locale === "ar" && p.name_ar ? p.name_ar : p.name}</span>
                             {p.color && <Badge variant="outline" className="shrink-0 text-[10px]">{p.color}</Badge>}
+                            {!p.visible_on_shop && <Badge variant="secondary" className="shrink-0 text-[10px]" title={t("products.hiddenFromShop")}>{t("products.hidden")}</Badge>}
                           </div>
                           {p.brand && (
                             <div className="truncate text-xs text-muted-foreground">{p.brand}</div>
@@ -729,6 +732,7 @@ function ProductDialog({
     sold: "0",
     avgSell: "",
     is_active: true,
+    visible_on_shop: true,
   });
   const [files, setFiles] = useState<File[]>([]);
   const [existingImages, setExistingImages] = useState<string[]>([]);
@@ -757,6 +761,7 @@ function ProductDialog({
       sold: "0",
       avgSell: "",
       is_active: product?.is_active ?? true,
+      visible_on_shop: product?.visible_on_shop ?? true,
     });
     setFiles([]);
     setExistingImages(product?.image_urls ?? []);
@@ -810,6 +815,7 @@ function ProductDialog({
           opening_qty: opening,
           actual_cost: actualCost,
           is_active: form.is_active,
+          visible_on_shop: form.visible_on_shop,
           updated_by: userData.user?.id,
         };
         const { error } = await supabase.from("products").update(patch).eq("id", product.id);
@@ -1128,6 +1134,18 @@ function ProductDialog({
               {t("products.active")}
             </label>
           )}
+          <label className="flex items-start gap-2 text-sm font-medium sm:col-span-2">
+            <input
+              type="checkbox"
+              className="mt-0.5 size-4 accent-[var(--primary)]"
+              checked={form.visible_on_shop}
+              onChange={(e) => setForm({ ...form, visible_on_shop: e.target.checked })}
+            />
+            <span>
+              <span>{t("products.visibleOnShop")}</span>
+              <span className="block text-xs font-normal text-muted-foreground">{t("products.visibleOnShopHint")}</span>
+            </span>
+          </label>
 
           <div className="mt-2 flex justify-end gap-2 sm:col-span-2">
             <Button type="button" variant="outline" onClick={onClose}>{t("common.cancel")}</Button>

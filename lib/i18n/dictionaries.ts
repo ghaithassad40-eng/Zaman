@@ -195,6 +195,10 @@ export const dictionaries = {
     "products.soldQtyHint": "Pre-system sales. Creates a historical sale dated 2026-01-01.",
     "products.avgSellPrice": "Avg selling price",
     "products.active": "Active (available to sell)",
+    "products.visibleOnShop": "Show on public shop catalogue",
+    "products.visibleOnShopHint": "Untick to hide this product from shop.zaman-jo.com. Doesn't affect admin sales or inventory. Hidden products also drop out automatically when on-hand reaches 0.",
+    "products.hidden": "Hidden",
+    "products.hiddenFromShop": "Hidden from the public shop",
 
     "import.template": "Template",
     "import.upload": "Upload Excel",
@@ -970,6 +974,10 @@ export const dictionaries = {
     "products.soldQtyHint": "مبيعات سابقة. تُنشئ بيعاً تاريخياً بتاريخ 2026-01-01.",
     "products.avgSellPrice": "متوسط سعر البيع",
     "products.active": "نشط (متاح للبيع)",
+    "products.visibleOnShop": "إظهار المنتج في المتجر العام",
+    "products.visibleOnShopHint": "أزل العلامة لإخفاء المنتج من shop.zaman-jo.com. لا يؤثّر على المبيعات أو المخزون. يُخفى المنتج تلقائياً أيضاً عند نفاد المخزون.",
+    "products.hidden": "مخفي",
+    "products.hiddenFromShop": "مخفي من المتجر العام",
 
     "import.template": "قالب",
     "import.upload": "رفع ملف Excel",
