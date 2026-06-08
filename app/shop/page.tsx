@@ -281,8 +281,8 @@ export default function ShopPage() {
                       )}
                     </div>
                     <div className="flex flex-wrap gap-1.5">
-                      {p.watch_type && <Badge variant="secondary" className="text-[10px]">{t(`shop.${p.watch_type}` as DictKey)}</Badge>}
-                      {p.gender && <Badge variant="outline" className="text-[10px]">{t(`shop.${p.gender}` as DictKey)}</Badge>}
+                      {p.watch_type && <Badge variant="secondary" className="text-[10px]">{t(`shop.${p.watch_type.toLowerCase()}` as DictKey)}</Badge>}
+                      {p.gender && <Badge variant="outline" className="text-[10px]">{t(`shop.${p.gender.toLowerCase()}` as DictKey)}</Badge>}
                       {p.color && <Badge variant="outline" className="text-[10px]">{p.color}</Badge>}
                     </div>
                     {/* Star summary */}
