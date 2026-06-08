@@ -535,6 +535,13 @@ export type Database = {
             referencedRelation: "products"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "inventory_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: true
+            referencedRelation: "v_shop_availability"
+            referencedColumns: ["product_id"]
+          },
         ]
       }
       inventory_movements: {
@@ -581,6 +588,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "products"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_movements_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "v_shop_availability"
+            referencedColumns: ["product_id"]
           },
         ]
       }
@@ -786,6 +800,7 @@ export type Database = {
           notes: string | null
           product_id: string | null
           product_name_snapshot: string
+          qty: number
           sale_id: string | null
           status: string
         }
@@ -801,6 +816,7 @@ export type Database = {
           notes?: string | null
           product_id?: string | null
           product_name_snapshot: string
+          qty?: number
           sale_id?: string | null
           status?: string
         }
@@ -816,6 +832,7 @@ export type Database = {
           notes?: string | null
           product_id?: string | null
           product_name_snapshot?: string
+          qty?: number
           sale_id?: string | null
           status?: string
         }
@@ -826,6 +843,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "products"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_requests_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "v_shop_availability"
+            referencedColumns: ["product_id"]
           },
           {
             foreignKeyName: "product_requests_sale_id_fkey"
@@ -877,6 +901,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "products"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_reviews_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "v_shop_availability"
+            referencedColumns: ["product_id"]
           },
         ]
       }
@@ -1055,6 +1086,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "purchase_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "v_shop_availability"
+            referencedColumns: ["product_id"]
+          },
+          {
             foreignKeyName: "purchase_items_purchase_id_fkey"
             columns: ["purchase_id"]
             isOneToOne: false
@@ -1215,6 +1253,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "products"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sale_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "v_shop_availability"
+            referencedColumns: ["product_id"]
           },
           {
             foreignKeyName: "sale_items_sale_id_fkey"
@@ -1511,6 +1556,15 @@ export type Database = {
         }
         Relationships: []
       }
+      v_shop_availability: {
+        Row: {
+          available: number | null
+          on_hand: number | null
+          product_id: string | null
+          reserved: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       adjust_inventory: {
@@ -1617,6 +1671,18 @@ export type Database = {
       set_txn_reconciled: {
         Args: { p_txn: string; p_value: boolean }
         Returns: undefined
+      }
+      submit_product_request: {
+        Args: {
+          p_address?: string
+          p_email?: string
+          p_name: string
+          p_notes?: string
+          p_phone: string
+          p_product_id: string
+          p_qty: number
+        }
+        Returns: string
       }
       transfer_between_accounts: {
         Args: {

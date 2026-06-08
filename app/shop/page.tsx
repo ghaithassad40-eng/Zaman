@@ -38,6 +38,8 @@ type ShopProduct = {
   expected_selling_price: number | null;
   description: string | null;
   inventory: { qty_on_hand: number } | null;
+  /** Computed: on_hand minus the qty already in pending requests. */
+  available: number;
 };
 
 type ProductReview = {
@@ -77,15 +79,31 @@ export default function ShopPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["shop-products"],
     queryFn: async (): Promise<ShopProduct[]> => {
-      const { data, error } = await supabase
-        .from("products")
-        .select("id, name, name_ar, brand, model, color, gender, watch_type, image_urls, default_selling_price, expected_selling_price, description, inventory(qty_on_hand)")
-        .eq("is_active", true)
-        .is("deleted_at", null)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return ((data ?? []) as unknown as ShopProduct[]).filter((p) => (p.inventory?.qty_on_hand ?? 0) > 0);
+      // Pull products + availability map in parallel. The view computes
+      // available = on_hand − sum(pending request qty).
+      const [prodRes, availRes] = await Promise.all([
+        supabase
+          .from("products")
+          .select("id, name, name_ar, brand, model, color, gender, watch_type, image_urls, default_selling_price, expected_selling_price, description, inventory(qty_on_hand)")
+          .eq("is_active", true)
+          .is("deleted_at", null)
+          .order("created_at", { ascending: false }),
+        supabase.from("v_shop_availability").select("product_id, available"),
+      ]);
+      if (prodRes.error) throw prodRes.error;
+      const availMap = new Map<string, number>();
+      for (const r of availRes.data ?? []) {
+        if (r.product_id) availMap.set(r.product_id, Number(r.available ?? 0));
+      }
+      const rows = (prodRes.data ?? []) as unknown as ShopProduct[];
+      // Drop fully reserved / out-of-stock items from the grid.
+      return rows
+        .map((p) => ({ ...p, available: availMap.get(p.id) ?? 0 }))
+        .filter((p) => p.available > 0);
     },
+    // Refetch when window regains focus so a customer sees up-to-date
+    // availability if they switched tabs while someone else was buying.
+    refetchOnWindowFocus: true,
   });
 
   const { data: company } = useQuery({
@@ -245,6 +263,15 @@ export default function ShopPage() {
                         <Watch className="size-16" />
                       </div>
                     )}
+                    {/* Stock-low badge — for the urgency of "only 1 left" */}
+                    {p.available <= 2 && (
+                      <Badge
+                        variant={p.available === 1 ? "destructive" : "warning"}
+                        className="absolute end-2 top-2 text-[10px]"
+                      >
+                        {p.available === 1 ? t("shop.lastOne") : t("shop.fewLeft").replace("{n}", String(p.available))}
+                      </Badge>
+                    )}
                   </div>
                   <CardContent className="space-y-2 p-4">
                     <div>
@@ -380,25 +407,34 @@ function Stars({ value }: { value: number }) {
 function RequestDialog({ product, onClose }: { product: ShopProduct | null; onClose: () => void }) {
   const { t, locale } = useI18n();
   const supabase = createClient();
-  const [form, setForm] = useState({ name: "", phone: "", email: "", address: "", notes: "" });
+  const qc = useQueryClient();
+  const [form, setForm] = useState({ qty: 1, name: "", phone: "", email: "", address: "", notes: "" });
+  const max = product?.available ?? 1;
+
+  // Reset qty whenever product changes
+  if (product && form.qty > max) {
+    setForm((f) => ({ ...f, qty: max }));
+  }
 
   const submit = useMutation({
     mutationFn: async () => {
       if (!product) return;
-      const { error } = await supabase.from("product_requests").insert({
-        product_id: product.id,
-        product_name_snapshot: product.name,
-        customer_name: form.name.trim(),
-        customer_phone: form.phone.trim(),
-        customer_email: form.email.trim() || null,
-        customer_address: form.address.trim() || null,
-        notes: form.notes.trim() || null,
+      const { error } = await supabase.rpc("submit_product_request", {
+        p_product_id: product.id,
+        p_qty: form.qty,
+        p_name: form.name.trim(),
+        p_phone: form.phone.trim(),
+        p_email: form.email.trim() || undefined,
+        p_address: form.address.trim() || undefined,
+        p_notes: form.notes.trim() || undefined,
       });
       if (error) throw error;
     },
     onSuccess: () => {
       toast.success(t("shop.requestSent"));
-      setForm({ name: "", phone: "", email: "", address: "", notes: "" });
+      // Refresh availability so other open tabs see the new reserved qty
+      qc.invalidateQueries({ queryKey: ["shop-products"] });
+      setForm({ qty: 1, name: "", phone: "", email: "", address: "", notes: "" });
       onClose();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -414,9 +450,43 @@ function RequestDialog({ product, onClose }: { product: ShopProduct | null; onCl
           <form onSubmit={(e) => { e.preventDefault(); submit.mutate(); }} className="grid grid-cols-2 gap-4">
             <div className="col-span-2 rounded-md border bg-muted/40 p-3">
               <div className="font-medium">{locale === "ar" && product.name_ar ? product.name_ar : product.name}</div>
-              {(product.default_selling_price ?? product.expected_selling_price) != null && (
-                <div className="mt-0.5 text-sm text-primary">{formatJOD(product.default_selling_price ?? product.expected_selling_price!, locale)}</div>
-              )}
+              <div className="mt-0.5 flex items-center justify-between text-sm">
+                {(product.default_selling_price ?? product.expected_selling_price) != null && (
+                  <div className="text-primary">{formatJOD(product.default_selling_price ?? product.expected_selling_price!, locale)}</div>
+                )}
+                <div className={"text-xs " + (max <= 2 ? "font-medium text-amber-700" : "text-muted-foreground")}>
+                  {t("shop.availableNow").replace("{n}", String(max))}
+                </div>
+              </div>
+            </div>
+            <div className="col-span-2 space-y-1.5">
+              <Label>{t("shop.qty")} *</Label>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button" variant="outline" size="sm"
+                  onClick={() => setForm({ ...form, qty: Math.max(1, form.qty - 1) })}
+                  disabled={form.qty <= 1}
+                  aria-label={t("shop.qtyMinus")}
+                >−</Button>
+                <Input
+                  type="number" min={1} max={max} dir="ltr"
+                  value={form.qty}
+                  onChange={(e) => {
+                    const n = Math.max(1, Math.min(max, Number(e.target.value) || 1));
+                    setForm({ ...form, qty: n });
+                  }}
+                  className="w-20 text-center"
+                />
+                <Button
+                  type="button" variant="outline" size="sm"
+                  onClick={() => setForm({ ...form, qty: Math.min(max, form.qty + 1) })}
+                  disabled={form.qty >= max}
+                  aria-label={t("shop.qtyPlus")}
+                >+</Button>
+                <span className="text-xs text-muted-foreground">
+                  {t("shop.maxIs").replace("{n}", String(max))}
+                </span>
+              </div>
             </div>
             <div className="col-span-2 space-y-1.5">
               <Label>{t("shop.yourName")} *</Label>

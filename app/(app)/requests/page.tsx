@@ -98,7 +98,7 @@ export default function RequestsPage() {
       qc.invalidateQueries({ queryKey: ["product-requests-counts"] });
 
       // 3. Hand off to the sell flow with the product + customer pre-populated.
-      router.push(`/sell?product=${r.product_id}&customer=${customerId}&request=${r.id}`);
+      router.push(`/sell?product=${r.product_id}&customer=${customerId}&request=${r.id}&qty=${r.qty}`);
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -138,6 +138,7 @@ export default function RequestsPage() {
               { header: "Date", accessor: (r) => r.created_at?.slice(0, 10) ?? "" },
               { header: "Status", accessor: (r) => r.status },
               { header: "Product", accessor: (r) => r.products?.name ?? r.product_name_snapshot },
+              { header: "Qty", accessor: (r) => r.qty },
               { header: "Customer", accessor: (r) => r.customer_name },
               { header: "Phone", accessor: (r) => r.customer_phone },
               { header: "Email", accessor: (r) => r.customer_email ?? "" },
@@ -177,6 +178,7 @@ export default function RequestsPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="font-semibold">{r.products?.name ?? r.product_name_snapshot}</span>
+                      <Badge variant="secondary" className="text-[10px]">×{r.qty}</Badge>
                       <Badge variant={r.status === "confirmed" ? "success" : r.status === "rejected" ? "destructive" : "warning"}>
                         {t(`requests.status.${r.status}` as DictKey)}
                       </Badge>
