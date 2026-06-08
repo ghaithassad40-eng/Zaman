@@ -35,6 +35,7 @@ import { formatJOD, num3, round3 } from "@/lib/utils";
 import type { TablesUpdate } from "@/types/database.types";
 import { ImportControls } from "@/components/import-controls";
 import { ExportButton } from "@/components/export-button";
+import { SortableHead, useSort } from "@/components/ui/sortable-head";
 import { numOr, type Col } from "@/lib/xlsx-utils";
 
 const PROD_COLS: Col[] = [
@@ -362,9 +363,10 @@ export default function ProductsPage() {
     return { created, skipped: errors.length, errors };
   }
 
+  const sort = useSort<ProductRow>();
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return (data ?? []).filter((p) => {
+    const f = (data ?? []).filter((p) => {
       if (colorFilter && (p.color ?? "") !== colorFilter) return false;
       if (!q) return true;
       return (
@@ -378,7 +380,20 @@ export default function ProductsPage() {
         (p.gender ?? "").toLowerCase().includes(q)
       );
     });
-  }, [data, search, colorFilter]);
+    return sort.applyTo(f, (p, k) => {
+      switch (k) {
+        case "name": return p.name;
+        case "sku": return p.sku;
+        case "opening": return p.opening_qty;
+        case "sold": return p.historical_units_sold;
+        case "on_hand": return p.inventory?.qty_on_hand ?? 0;
+        case "cost": return p.actual_cost ?? 0;
+        case "avg_sell": return p.avg_selling_price ?? 0;
+        case "price": return p.default_selling_price ?? p.expected_selling_price ?? 0;
+        default: return null;
+      }
+    });
+  }, [data, search, colorFilter, sort]);
 
   const forecast = useMemo(() => {
     let rev = 0, cost = 0;
@@ -493,14 +508,14 @@ export default function ProductsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>{t("common.name")}</TableHead>
-                  <TableHead>{t("products.sku")}</TableHead>
-                  <TableHead className="text-end">{t("products.openingQty")}</TableHead>
-                  <TableHead className="text-end">{t("products.soldQty")}</TableHead>
-                  <TableHead className="text-end">{t("products.onHand")}</TableHead>
-                  <TableHead className="text-end">{t("products.actualCost")}</TableHead>
-                  <TableHead className="text-end">{t("products.avgSellPrice")}</TableHead>
-                  <TableHead className="text-end">{t("products.sellingPrice")}</TableHead>
+                  <SortableHead sortKey="name" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle}>{t("common.name")}</SortableHead>
+                  <SortableHead sortKey="sku" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle}>{t("products.sku")}</SortableHead>
+                  <SortableHead sortKey="opening" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle} align="end">{t("products.openingQty")}</SortableHead>
+                  <SortableHead sortKey="sold" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle} align="end">{t("products.soldQty")}</SortableHead>
+                  <SortableHead sortKey="on_hand" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle} align="end">{t("products.onHand")}</SortableHead>
+                  <SortableHead sortKey="cost" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle} align="end">{t("products.actualCost")}</SortableHead>
+                  <SortableHead sortKey="avg_sell" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle} align="end">{t("products.avgSellPrice")}</SortableHead>
+                  <SortableHead sortKey="price" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle} align="end">{t("products.sellingPrice")}</SortableHead>
                   <TableHead className="text-end">{t("common.actions")}</TableHead>
                 </TableRow>
               </TableHeader>

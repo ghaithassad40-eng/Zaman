@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/provider";
 import { PageHeader } from "@/components/page-header";
 import { ExportButton } from "@/components/export-button";
+import { SortableHead, useSort } from "@/components/ui/sortable-head";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -43,14 +44,28 @@ export default function FixedAssetsPage() {
     },
   });
 
+  const sort = useSort<AssetRow>();
   const filtered = useMemo(() => {
     if (!data) return [];
     const needle = q.trim().toLowerCase();
-    if (!needle) return data;
-    return data.filter((r) =>
+    const f = !needle ? data : data.filter((r) =>
       [r.name, r.vendor_name].filter(Boolean).some((s) => (s as string).toLowerCase().includes(needle)),
     );
-  }, [data, q]);
+    return sort.applyTo(f, (r, k) => {
+      switch (k) {
+        case "name": return r.name ?? "";
+        case "vendor": return r.vendor_name ?? "";
+        case "start": return r.start_date ?? "";
+        case "cost": return Number(r.cost ?? 0);
+        case "years": return Number(r.years ?? 0);
+        case "monthly": return Number(r.monthly_depreciation ?? 0);
+        case "accumulated": return Number(r.accumulated_depreciation ?? 0);
+        case "book": return Number(r.book_value ?? 0);
+        case "progress": return Number(r.months_total ?? 0) > 0 ? Number(r.months_elapsed ?? 0) / Number(r.months_total) : 0;
+        default: return null;
+      }
+    });
+  }, [data, q, sort]);
 
   const totals = useMemo(() => {
     const rows = filtered;
@@ -119,15 +134,15 @@ export default function FixedAssetsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>{t("common.name")}</TableHead>
-                  <TableHead>{t("vendors.title")}</TableHead>
-                  <TableHead>{t("fixedAssets.startDate")}</TableHead>
-                  <TableHead className="text-end">{t("fixedAssets.cost")}</TableHead>
-                  <TableHead className="text-end">{t("fixedAssets.years")}</TableHead>
-                  <TableHead className="text-end">{t("fixedAssets.monthly")}</TableHead>
-                  <TableHead className="text-end">{t("fixedAssets.accumulated")}</TableHead>
-                  <TableHead className="text-end">{t("fixedAssets.bookValue")}</TableHead>
-                  <TableHead>{t("fixedAssets.progress")}</TableHead>
+                  <SortableHead sortKey="name" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle}>{t("common.name")}</SortableHead>
+                  <SortableHead sortKey="vendor" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle}>{t("vendors.title")}</SortableHead>
+                  <SortableHead sortKey="start" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle}>{t("fixedAssets.startDate")}</SortableHead>
+                  <SortableHead sortKey="cost" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle} align="end">{t("fixedAssets.cost")}</SortableHead>
+                  <SortableHead sortKey="years" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle} align="end">{t("fixedAssets.years")}</SortableHead>
+                  <SortableHead sortKey="monthly" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle} align="end">{t("fixedAssets.monthly")}</SortableHead>
+                  <SortableHead sortKey="accumulated" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle} align="end">{t("fixedAssets.accumulated")}</SortableHead>
+                  <SortableHead sortKey="book" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle} align="end">{t("fixedAssets.bookValue")}</SortableHead>
+                  <SortableHead sortKey="progress" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle}>{t("fixedAssets.progress")}</SortableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

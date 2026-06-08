@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -12,6 +12,7 @@ import { ensureInvoiceForSale } from "@/lib/invoice-actions";
 import { downloadInvoicePdf } from "@/lib/pdf/invoice";
 import { PageHeader } from "@/components/page-header";
 import { ExportButton } from "@/components/export-button";
+import { SortableHead, useSort } from "@/components/ui/sortable-head";
 import { Stepper } from "@/components/stepper";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -90,19 +91,33 @@ export default function SalesPage() {
   }
 
   const q = search.trim().toLowerCase();
-  const filtered = !q ? (data ?? []) : (data ?? []).filter((s) => {
-    if (s.sale_no.toLowerCase().includes(q)) return true;
-    if ((s.customers?.name ?? "").toLowerCase().includes(q)) return true;
-    if (Number(s.total).toString().includes(q)) return true;
-    if (s.sale_date.includes(q)) return true;
-    for (const it of s.sale_items ?? []) {
-      if ((it.description ?? "").toLowerCase().includes(q)) return true;
-      if ((it.products?.name ?? "").toLowerCase().includes(q)) return true;
-      if ((it.products?.sku ?? "").toLowerCase().includes(q)) return true;
-      if ((it.products?.color ?? "").toLowerCase().includes(q)) return true;
-    }
-    return false;
-  });
+  const sort = useSort<SaleRow>();
+  const filtered = useMemo(() => {
+    const base = !q ? (data ?? []) : (data ?? []).filter((s) => {
+      if (s.sale_no.toLowerCase().includes(q)) return true;
+      if ((s.customers?.name ?? "").toLowerCase().includes(q)) return true;
+      if (Number(s.total).toString().includes(q)) return true;
+      if (s.sale_date.includes(q)) return true;
+      for (const it of s.sale_items ?? []) {
+        if ((it.description ?? "").toLowerCase().includes(q)) return true;
+        if ((it.products?.name ?? "").toLowerCase().includes(q)) return true;
+        if ((it.products?.sku ?? "").toLowerCase().includes(q)) return true;
+        if ((it.products?.color ?? "").toLowerCase().includes(q)) return true;
+      }
+      return false;
+    });
+    return sort.applyTo(base, (s, k) => {
+      switch (k) {
+        case "no": return s.sale_no;
+        case "customer": return s.customers?.name ?? "";
+        case "date": return s.sale_date;
+        case "status": return s.status;
+        case "total": return Number(s.total);
+        case "profit": return Number(s.gross_profit);
+        default: return null;
+      }
+    });
+  }, [data, q, sort]);
 
   return (
     <>
@@ -150,12 +165,12 @@ export default function SalesPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>{t("sales.no")}</TableHead>
-                  <TableHead>{t("sell.customer")}</TableHead>
-                  <TableHead>{t("common.date")}</TableHead>
-                  <TableHead>{t("common.status")}</TableHead>
-                  <TableHead className="text-end">{t("common.total")}</TableHead>
-                  <TableHead className="text-end">{t("common.profit")}</TableHead>
+                  <SortableHead sortKey="no" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle}>{t("sales.no")}</SortableHead>
+                  <SortableHead sortKey="customer" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle}>{t("sell.customer")}</SortableHead>
+                  <SortableHead sortKey="date" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle}>{t("common.date")}</SortableHead>
+                  <SortableHead sortKey="status" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle}>{t("common.status")}</SortableHead>
+                  <SortableHead sortKey="total" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle} align="end">{t("common.total")}</SortableHead>
+                  <SortableHead sortKey="profit" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle} align="end">{t("common.profit")}</SortableHead>
                   <TableHead className="text-end">{t("common.actions")}</TableHead>
                 </TableRow>
               </TableHeader>

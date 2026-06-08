@@ -11,6 +11,7 @@ import { parseEtihadStatement, type ParsedStatementLine } from "@/lib/etihad-sta
 import { parseBankStatementFile } from "@/lib/bank-statement";
 import { PageHeader } from "@/components/page-header";
 import { ExportButton } from "@/components/export-button";
+import { SortableHead, useSort } from "@/components/ui/sortable-head";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -57,6 +58,7 @@ export default function BanksPage() {
   const [txnAcc, setTxnAcc] = useState<string | null>(null);
   const [editAcc, setEditAcc] = useState<AccountWithTxns | null>(null);
   const [reconcileAcc, setReconcileAcc] = useState<AccountWithTxns | null>(null);
+  const txnSort = useSort<Tables<"cash_transactions"> & { accounts: { name: string } | null }>("date", "desc");
   const [transferOpen, setTransferOpen] = useState(false);
   const [editTxn, setEditTxn] = useState<Tables<"cash_transactions"> | null>(null);
   const [delBusy, setDelBusy] = useState<string | null>(null);
@@ -211,15 +213,23 @@ export default function BanksPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>{t("common.date")}</TableHead>
-                      <TableHead>{t("banks.account")}</TableHead>
-                      <TableHead>{t("assets.category")}</TableHead>
-                      <TableHead className="text-end">{t("banks.amount")}</TableHead>
+                      <SortableHead sortKey="date" current={txnSort.sortKey} dir={txnSort.sortDir} onToggle={txnSort.toggle}>{t("common.date")}</SortableHead>
+                      <SortableHead sortKey="account" current={txnSort.sortKey} dir={txnSort.sortDir} onToggle={txnSort.toggle}>{t("banks.account")}</SortableHead>
+                      <SortableHead sortKey="category" current={txnSort.sortKey} dir={txnSort.sortDir} onToggle={txnSort.toggle}>{t("assets.category")}</SortableHead>
+                      <SortableHead sortKey="amount" current={txnSort.sortKey} dir={txnSort.sortDir} onToggle={txnSort.toggle} align="end">{t("banks.amount")}</SortableHead>
                       <TableHead className="text-end">{t("common.actions")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {data.recent.map((x) => {
+                    {txnSort.applyTo(data.recent, (x, k) => {
+                      switch (k) {
+                        case "date": return x.txn_date;
+                        case "account": return x.accounts?.name ?? "";
+                        case "category": return x.category ?? "";
+                        case "amount": return Number(x.amount);
+                        default: return null;
+                      }
+                    }).map((x) => {
                       const linked = !!x.ref_table;
                       return (
                         <TableRow key={x.id}>

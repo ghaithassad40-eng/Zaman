@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/provider";
 import { PageHeader } from "@/components/page-header";
 import { ExportButton } from "@/components/export-button";
+import { SortableHead, useSort } from "@/components/ui/sortable-head";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -61,6 +62,7 @@ export default function PurchasesPage() {
 
   const [editRow, setEditRow] = useState<PurchaseRow | null>(null);
   const [delBusy, setDelBusy] = useState<string | null>(null);
+  const sort = useSort<PurchaseRow>();
 
   const { data, isLoading } = useQuery({
     queryKey: ["purchases"],
@@ -73,6 +75,17 @@ export default function PurchasesPage() {
       if (error) throw error;
       return (data ?? []) as unknown as PurchaseRow[];
     },
+  });
+
+  const sorted = sort.applyTo(data, (p, k) => {
+    switch (k) {
+      case "ref": return p.reference ?? p.doc_no ?? "";
+      case "vendor": return p.vendors?.name ?? "";
+      case "date": return p.order_date;
+      case "landed": return Number(p.total_landed);
+      case "status": return p.status;
+      default: return null;
+    }
   });
 
   const receive = useMutation({
@@ -217,16 +230,16 @@ export default function PurchasesPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>{t("purchases.reference")}</TableHead>
-                  <TableHead>{t("vendors.title")}</TableHead>
-                  <TableHead>{t("common.date")}</TableHead>
-                  <TableHead className="text-end">{t("purchases.landed")}</TableHead>
-                  <TableHead>{t("common.status")}</TableHead>
+                  <SortableHead sortKey="ref" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle}>{t("purchases.reference")}</SortableHead>
+                  <SortableHead sortKey="vendor" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle}>{t("vendors.title")}</SortableHead>
+                  <SortableHead sortKey="date" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle}>{t("common.date")}</SortableHead>
+                  <SortableHead sortKey="landed" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle} align="end">{t("purchases.landed")}</SortableHead>
+                  <SortableHead sortKey="status" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle}>{t("common.status")}</SortableHead>
                   <TableHead className="text-end">{t("common.actions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data.map((p) => (
+                {sorted.map((p) => (
                   <TableRow key={p.id}>
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-1.5">

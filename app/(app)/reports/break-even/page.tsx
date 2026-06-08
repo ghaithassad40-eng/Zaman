@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ExportButton } from "@/components/export-button";
+import { SortableHead, useSort } from "@/components/ui/sortable-head";
 import {
   Table,
   TableBody,
@@ -57,6 +58,7 @@ export default function BreakEvenPage() {
   const now = new Date();
   const [from, setFrom] = useState(`${now.getFullYear()}-01-01`);
   const [to, setTo] = useState(now.toISOString().slice(0, 10));
+  const sort = useSort<Breakeven["per_product"][number]>();
 
   const { data, isLoading } = useQuery({
     queryKey: ["breakeven", from, to],
@@ -221,17 +223,28 @@ export default function BreakEvenPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>{t("breakeven.product")}</TableHead>
-                      <TableHead className="text-end">{t("breakeven.unitsSold")}</TableHead>
-                      <TableHead className="text-end">{t("breakeven.unitPrice")}</TableHead>
-                      <TableHead className="text-end">{t("breakeven.unitCost")}</TableHead>
-                      <TableHead className="text-end">{t("breakeven.unitMargin")}</TableHead>
-                      <TableHead className="text-end">{t("breakeven.marginPct")}</TableHead>
-                      <TableHead className="text-end">{t("breakeven.bepUnits")}</TableHead>
+                      <SortableHead sortKey="name" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle}>{t("breakeven.product")}</SortableHead>
+                      <SortableHead sortKey="units" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle} align="end">{t("breakeven.unitsSold")}</SortableHead>
+                      <SortableHead sortKey="price" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle} align="end">{t("breakeven.unitPrice")}</SortableHead>
+                      <SortableHead sortKey="cost" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle} align="end">{t("breakeven.unitCost")}</SortableHead>
+                      <SortableHead sortKey="margin" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle} align="end">{t("breakeven.unitMargin")}</SortableHead>
+                      <SortableHead sortKey="pct" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle} align="end">{t("breakeven.marginPct")}</SortableHead>
+                      <SortableHead sortKey="bep" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle} align="end">{t("breakeven.bepUnits")}</SortableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {data.per_product.map((p) => (
+                    {sort.applyTo(data.per_product, (p, k) => {
+                      switch (k) {
+                        case "name": return p.name;
+                        case "units": return p.units_sold;
+                        case "price": return p.unit_price;
+                        case "cost": return p.unit_cost;
+                        case "margin": return p.unit_margin;
+                        case "pct": return p.margin_pct;
+                        case "bep": return p.bep_units ?? Number.POSITIVE_INFINITY;
+                        default: return null;
+                      }
+                    }).map((p) => (
                       <TableRow key={p.product_id}>
                         <TableCell>
                           <div className="font-medium">{p.name}</div>

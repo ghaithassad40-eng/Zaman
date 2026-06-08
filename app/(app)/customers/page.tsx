@@ -10,6 +10,7 @@ import { useCustomers, useCompanySettings } from "@/lib/hooks";
 import { downloadCustomerStatement } from "@/lib/statements";
 import { PageHeader } from "@/components/page-header";
 import { ExportButton } from "@/components/export-button";
+import { SortableHead, useSort } from "@/components/ui/sortable-head";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,6 +38,16 @@ const emptyForm = { first_name: "", last_name: "", phone: "", instagram: "", add
 export default function CustomersPage() {
   const { t } = useI18n();
   const { data, isLoading } = useCustomers();
+  const sort = useSort<Customer>();
+  const sorted = sort.applyTo(data, (c, k) => {
+    switch (k) {
+      case "name": return c.name;
+      case "phone": return c.phone ?? "";
+      case "ig": return c.instagram_handle ?? "";
+      case "city": return c.city ?? "";
+      default: return null;
+    }
+  });
   const { data: company } = useCompanySettings();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Customer | null>(null);
@@ -167,15 +178,15 @@ export default function CustomersPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>{t("common.name")}</TableHead>
-                  <TableHead>{t("common.phone")}</TableHead>
-                  <TableHead>{t("customers.instagram")}</TableHead>
-                  <TableHead>{t("customers.city")}</TableHead>
+                  <SortableHead sortKey="name" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle}>{t("common.name")}</SortableHead>
+                  <SortableHead sortKey="phone" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle}>{t("common.phone")}</SortableHead>
+                  <SortableHead sortKey="ig" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle}>{t("customers.instagram")}</SortableHead>
+                  <SortableHead sortKey="city" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle}>{t("customers.city")}</SortableHead>
                   <TableHead className="text-end">{t("common.actions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data.map((c) => (
+                {sorted.map((c) => (
                   <TableRow key={c.id}>
                     <TableCell className="font-medium">{c.name}</TableCell>
                     <TableCell dir="ltr" className="text-muted-foreground">{c.phone ?? "—"}</TableCell>

@@ -9,6 +9,7 @@ import { useI18n } from "@/lib/i18n/provider";
 import { downloadInvoicePdf, type InvoiceItem } from "@/lib/pdf/invoice";
 import { PageHeader } from "@/components/page-header";
 import { ExportButton } from "@/components/export-button";
+import { SortableHead, useSort } from "@/components/ui/sortable-head";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -29,6 +30,7 @@ export default function InvoicesPage() {
   const { t, locale } = useI18n();
   const supabase = createClient();
   const [busy, setBusy] = useState<string | null>(null);
+  const sort = useSort<InvoiceRow>();
 
   const { data, isLoading } = useQuery({
     queryKey: ["invoices-list"],
@@ -41,6 +43,17 @@ export default function InvoicesPage() {
       if (error) throw error;
       return (data ?? []) as unknown as InvoiceRow[];
     },
+  });
+
+  const sorted = sort.applyTo(data, (i, k) => {
+    switch (k) {
+      case "no": return i.invoice_no;
+      case "customer": return i.customers?.name ?? "";
+      case "issue": return i.issue_date;
+      case "gst": return Number(i.gst_amount);
+      case "total": return Number(i.total);
+      default: return null;
+    }
   });
 
   async function download(inv: InvoiceRow) {
@@ -109,16 +122,16 @@ export default function InvoicesPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>{t("invoices.no")}</TableHead>
-                  <TableHead>{t("invoices.billTo")}</TableHead>
-                  <TableHead>{t("invoices.issue")}</TableHead>
-                  <TableHead className="text-end">{t("sell.gst")}</TableHead>
-                  <TableHead className="text-end">{t("common.total")}</TableHead>
+                  <SortableHead sortKey="no" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle}>{t("invoices.no")}</SortableHead>
+                  <SortableHead sortKey="customer" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle}>{t("invoices.billTo")}</SortableHead>
+                  <SortableHead sortKey="issue" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle}>{t("invoices.issue")}</SortableHead>
+                  <SortableHead sortKey="gst" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle} align="end">{t("sell.gst")}</SortableHead>
+                  <SortableHead sortKey="total" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle} align="end">{t("common.total")}</SortableHead>
                   <TableHead className="text-end">{t("common.actions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data.map((inv) => (
+                {sorted.map((inv) => (
                   <TableRow key={inv.id}>
                     <TableCell className="font-medium">{inv.invoice_no}</TableCell>
                     <TableCell>{inv.customers?.name ?? "—"}</TableCell>
