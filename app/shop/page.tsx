@@ -81,25 +81,34 @@ export default function ShopPage() {
     queryFn: async (): Promise<ShopProduct[]> => {
       // Pull products + availability map in parallel. The view computes
       // available = on_hand − sum(pending request qty).
+      // Anon no longer has direct SELECT on the inventory table (cost basis
+      // protection). Read availability from the v_shop_availability view,
+      // which only exposes (product_id, on_hand, reserved, available).
       const [prodRes, availRes] = await Promise.all([
         supabase
           .from("products")
-          .select("id, name, name_ar, brand, model, color, gender, watch_type, image_urls, default_selling_price, expected_selling_price, description, inventory(qty_on_hand)")
+          .select("id, name, name_ar, brand, model, color, gender, watch_type, image_urls, default_selling_price, expected_selling_price, description")
           .eq("is_active", true)
           .eq("visible_on_shop", true)
           .is("deleted_at", null)
           .order("created_at", { ascending: false }),
-        supabase.from("v_shop_availability").select("product_id, available"),
+        supabase.from("v_shop_availability").select("product_id, on_hand, available"),
       ]);
       if (prodRes.error) throw prodRes.error;
-      const availMap = new Map<string, number>();
+      const availMap = new Map<string, { on_hand: number; available: number }>();
       for (const r of availRes.data ?? []) {
-        if (r.product_id) availMap.set(r.product_id, Number(r.available ?? 0));
+        if (r.product_id) availMap.set(r.product_id, {
+          on_hand: Number(r.on_hand ?? 0),
+          available: Number(r.available ?? 0),
+        });
       }
-      const rows = (prodRes.data ?? []) as unknown as ShopProduct[];
+      const rows = (prodRes.data ?? []).map((p) => ({
+        ...p,
+        inventory: { qty_on_hand: availMap.get(p.id)?.on_hand ?? 0 },
+      })) as unknown as ShopProduct[];
       // Drop fully reserved / out-of-stock items from the grid.
       return rows
-        .map((p) => ({ ...p, available: availMap.get(p.id) ?? 0 }))
+        .map((p) => ({ ...p, available: availMap.get(p.id)?.available ?? 0 }))
         .filter((p) => p.available > 0);
     },
     // Refetch when window regains focus so a customer sees up-to-date
