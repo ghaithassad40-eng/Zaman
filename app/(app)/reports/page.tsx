@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import Link from "next/link";
-import { Printer, TrendingUp, Coins, Percent, Landmark, CheckCircle2, XCircle, FileText, Loader2, Users, Truck, Lock, LockOpen } from "lucide-react";
+import { Printer, TrendingUp, Coins, Percent, Landmark, CheckCircle2, XCircle, FileText, Loader2, Users, Truck, Lock, LockOpen, Target } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/provider";
 import { useCompanySettings, useCustomers } from "@/lib/hooks";
@@ -427,6 +427,24 @@ export default function ReportsPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Break-Even quick link */}
+          <Link href="/reports/break-even" className="block">
+            <Card className="transition hover:border-primary/40 hover:shadow-sm">
+              <CardContent className="flex flex-wrap items-center justify-between gap-3 p-5">
+                <div className="flex items-start gap-3">
+                  <div className="flex size-11 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
+                    <Target className="size-5" />
+                  </div>
+                  <div>
+                    <div className="font-semibold">{t("breakeven.title")}</div>
+                    <div className="text-sm text-muted-foreground">{t("breakeven.subtitle")}</div>
+                  </div>
+                </div>
+                <span className="text-sm text-primary">{t("common.open")} →</span>
+              </CardContent>
+            </Card>
+          </Link>
 
           {/* Transactions report quick link */}
           <Link href="/transactions" className="block">

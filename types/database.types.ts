@@ -1520,6 +1520,7 @@ export type Database = {
         Args: { p_purchase_id: string }
         Returns: undefined
       }
+      get_breakeven: { Args: { p_from: string; p_to: string }; Returns: Json }
       get_financials: { Args: { p_from: string; p_to: string }; Returns: Json }
       is_admin_partner: { Args: never; Returns: boolean }
       is_partner: { Args: never; Returns: boolean }
