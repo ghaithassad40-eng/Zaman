@@ -16,9 +16,97 @@ type Fin = {
     contributed_capital: number; opening_capital: number; retained_earnings: number; drawings: number; total_equity: number;
   };
   roe: number;
+  audits: Array<{ key: string; label: string; pass: boolean; detail: string }>;
+  partners: Array<{ id: string; name: string; pct: number; equity: number; profit_share: number; drawings: number }>;
 };
 
 function j(n: number | null | undefined) { return `${Number(n ?? 0).toFixed(3)} JOD`; }
+function pct(n: number | null | undefined) { return `${(Number(n ?? 0)).toFixed(1)}%`; }
+function safeDiv(a: number, b: number): number { return b !== 0 ? a / b : 0; }
+
+/** Bilingual rule-based recommendations derived from the period's numbers. */
+function buildRecommendations(fin: Fin): Array<{ tone: "warn" | "info" | "good"; en: string; ar: string }> {
+  const out: Array<{ tone: "warn" | "info" | "good"; en: string; ar: string }> = [];
+  const { pl, balance_sheet: bs } = fin;
+  const gpMargin = pl.revenue > 0 ? (pl.gross_profit / pl.revenue) * 100 : 0;
+  const netMargin = pl.revenue > 0 ? (pl.net_profit / pl.revenue) * 100 : 0;
+  const equityRatio = bs.total_assets > 0 ? (bs.total_equity / bs.total_assets) * 100 : 0;
+  const inventoryShare = bs.total_assets > 0 ? (bs.inventory / bs.total_assets) * 100 : 0;
+  const totalOpex = pl.expenses + pl.marketing;
+
+  if (gpMargin < 30 && pl.revenue > 0) {
+    out.push({
+      tone: "warn",
+      en: `Gross margin of ${gpMargin.toFixed(1)}% is below the 30% benchmark for retail. Review selling prices on slow-margin SKUs or negotiate lower landed costs with suppliers.`,
+      ar: `هامش الربح الإجمالي ${gpMargin.toFixed(1)}% أقل من معيار التجزئة (30%). راجع أسعار البيع للأصناف ذات الهامش المنخفض أو تفاوض على تخفيض تكلفة الشراء مع المورّدين.`,
+    });
+  } else if (gpMargin >= 50) {
+    out.push({
+      tone: "good",
+      en: `Gross margin of ${gpMargin.toFixed(1)}% is healthy. Sustain pricing discipline as inventory turns.`,
+      ar: `هامش الربح الإجمالي ${gpMargin.toFixed(1)}% صحّي. حافظ على انضباط التسعير مع دوران المخزون.`,
+    });
+  }
+
+  if (netMargin < 0) {
+    out.push({
+      tone: "warn",
+      en: `Operating at a net loss of ${j(Math.abs(pl.net_profit))}. Cut discretionary marketing and review operating expenses item-by-item before next period.`,
+      ar: `يعمل بخسارة صافية قدرها ${j(Math.abs(pl.net_profit))}. خفّض التسويق غير الضروري وراجع المصاريف التشغيلية بنداً بنداً قبل الفترة القادمة.`,
+    });
+  }
+
+  if (bs.gst_payable > 0) {
+    out.push({
+      tone: "info",
+      en: `Outstanding GST of ${j(bs.gst_payable)} is due to the tax authority. File and settle before the period deadline to avoid penalties.`,
+      ar: `ضريبة المبيعات المستحقة (${j(bs.gst_payable)}) واجبة الدفع لدائرة الضريبة. أعدّ الإقرار وسدّد قبل الموعد لتجنّب الغرامات.`,
+    });
+  }
+
+  if (inventoryShare > 60) {
+    out.push({
+      tone: "warn",
+      en: `Inventory is ${inventoryShare.toFixed(0)}% of total assets — high concentration. Consider promotions on slow movers to free up cash.`,
+      ar: `المخزون يمثّل ${inventoryShare.toFixed(0)}% من إجمالي الأصول — تركيز مرتفع. فكّر في عروض على البطيء الحركة لتحرير السيولة.`,
+    });
+  }
+
+  if (equityRatio < 30 && bs.total_assets > 0) {
+    out.push({
+      tone: "warn",
+      en: `Equity ratio of ${equityRatio.toFixed(0)}% indicates the business is highly leveraged. Reinvest retained earnings rather than declare drawings.`,
+      ar: `نسبة حقوق الملكية ${equityRatio.toFixed(0)}% تعني أن المنشأة معتمدة على الديون. أعد استثمار الأرباح المحتجزة بدلاً من السحوبات.`,
+    });
+  } else if (equityRatio >= 70) {
+    out.push({
+      tone: "good",
+      en: `Equity ratio of ${equityRatio.toFixed(0)}% shows a financially sound, self-funded business.`,
+      ar: `نسبة حقوق الملكية ${equityRatio.toFixed(0)}% تعكس وضعاً مالياً سليماً ممولاً ذاتياً.`,
+    });
+  }
+
+  if (bs.cash > 0 && totalOpex > 0) {
+    const runwayMonths = bs.cash / (totalOpex);
+    if (runwayMonths < 2) {
+      out.push({
+        tone: "warn",
+        en: `Cash on hand covers approximately ${runwayMonths.toFixed(1)} month(s) of operating costs. Build a 3-month reserve before scaling marketing.`,
+        ar: `النقد المتاح يغطي ${runwayMonths.toFixed(1)} شهراً تقريباً من التكاليف التشغيلية. كوّن احتياطياً لـ3 أشهر قبل توسيع التسويق.`,
+      });
+    }
+  }
+
+  if (out.length === 0) {
+    out.push({
+      tone: "info",
+      en: "No material observations for the period. Continue current operating discipline.",
+      ar: "لا توجد ملاحظات جوهرية للفترة. استمر في الانضباط التشغيلي الحالي.",
+    });
+  }
+
+  return out;
+}
 
 function PrintStatementsInner() {
   const params = useSearchParams();
@@ -197,11 +285,205 @@ function PrintStatementsInner() {
           </div>
 
           <footer className="absolute bottom-10 left-14 right-14 border-t border-[#e7e0d1] pt-3 text-center text-[8pt] text-[#7a6e57]">
-            Prepared by {company?.name ?? "Zaman Watch"} · Generated {new Date().toISOString().slice(0, 10)}
+            Page 1 of 2 · Prepared by {company?.name ?? "Zaman Watch"} · Generated {new Date().toISOString().slice(0, 10)}
           </footer>
         </div>
       </div>
+
+      {/* PAGE 2 — Auditor commentary, indicators, observations, recommendations */}
+      <AuditorCommentaryPage
+        fin={fin}
+        company={company}
+        from={from}
+        to={to}
+        label={label}
+      />
     </>
+  );
+}
+
+function AuditorCommentaryPage({
+  fin, company, from, to, label,
+}: {
+  fin: Fin;
+  company: { name: string | null; name_ar: string | null; auditor_name?: string | null; auditor_name_ar?: string | null; auditor_firm?: string | null; auditor_license?: string | null } | null;
+  from: string; to: string; label: string;
+}) {
+  const { pl, gst, balance_sheet: bs, roe } = fin;
+  const gpMargin = pl.revenue > 0 ? (pl.gross_profit / pl.revenue) * 100 : 0;
+  const netMargin = pl.revenue > 0 ? (pl.net_profit / pl.revenue) * 100 : 0;
+  const equityRatio = bs.total_assets > 0 ? (bs.total_equity / bs.total_assets) * 100 : 0;
+  const debtToEquity = bs.total_equity > 0 ? safeDiv(bs.total_liabilities, bs.total_equity) : 0;
+  const currentRatio = bs.total_liabilities > 0 ? safeDiv(bs.cash + bs.courier_receivable + bs.inventory + bs.packaging_inventory, bs.total_liabilities) : 0;
+  const quickRatio = bs.total_liabilities > 0 ? safeDiv(bs.cash + bs.courier_receivable, bs.total_liabilities) : 0;
+  const invTurnover = bs.inventory > 0 ? safeDiv(pl.cogs, bs.inventory) : 0;
+  const assetTurnover = bs.total_assets > 0 ? safeDiv(pl.revenue, bs.total_assets) : 0;
+
+  const recs = buildRecommendations(fin);
+
+  return (
+    <div className="a4-sheet">
+      <div className="watermark" />
+      <div className="sheet-body">
+        {/* Header */}
+        <header className="mb-4 flex items-end justify-between border-b-2 border-[#9a7426] pb-2">
+          <div>
+            <div className="text-[15pt] font-bold leading-tight text-[#9a7426]">
+              Auditor's Commentary <span style={{ fontFamily: "var(--font-arabic)" }}>· تعليقات المدقّق</span>
+            </div>
+            <div className="mt-0.5 text-[8pt] text-[#7a6e57]">
+              Discussion of financial position, key indicators, observations, and recommendations · مناقشة المركز المالي والمؤشرات والملاحظات والتوصيات
+            </div>
+          </div>
+          <div className="text-right text-[8pt] text-[#7a6e57]">
+            <div>{company?.name ?? "Zaman Watch"}</div>
+            <div>{label}</div>
+          </div>
+        </header>
+
+        {/* Executive Summary */}
+        <section className="mb-3">
+          <h3 className="mb-1 text-[10pt] font-bold uppercase tracking-wider text-[#4a3a18]">Management Discussion · مناقشة الإدارة</h3>
+          <p className="text-[9pt] leading-snug">
+            During the period <strong>{from}</strong> to <strong>{to}</strong>, the business generated revenue of{" "}
+            <strong>{j(pl.revenue)}</strong> and incurred cost of goods sold of <strong>{j(pl.cogs)}</strong>, producing a gross profit of{" "}
+            <strong>{j(pl.gross_profit)}</strong> (<strong>{gpMargin.toFixed(1)}%</strong> margin). After operating expenses (<strong>{j(pl.expenses)}</strong>),
+            marketing (<strong>{j(pl.marketing)}</strong>), and depreciation (<strong>{j(pl.depreciation)}</strong>), the period closed with a{" "}
+            net {pl.net_profit >= 0 ? "profit" : "loss"} of <strong>{j(Math.abs(pl.net_profit))}</strong> ({netMargin.toFixed(1)}% of revenue).
+            The balance sheet at the period end shows total assets of <strong>{j(bs.total_assets)}</strong>, financed by total liabilities of{" "}
+            <strong>{j(bs.total_liabilities)}</strong> and total equity of <strong>{j(bs.total_equity)}</strong> ({equityRatio.toFixed(0)}% equity ratio).
+            Return on equity for the period stands at <strong>{pct(roe)}</strong>.
+          </p>
+          <p className="mt-1.5 text-[9pt] leading-snug" dir="rtl" style={{ fontFamily: "var(--font-arabic)" }}>
+            خلال الفترة من <strong>{from}</strong> إلى <strong>{to}</strong>، حقّقت المنشأة إيرادات بمقدار{" "}
+            <strong>{j(pl.revenue)}</strong> وتكبّدت تكلفة بضاعة مباعة قدرها <strong>{j(pl.cogs)}</strong>، ينتج عنها هامش ربح إجمالي{" "}
+            <strong>{j(pl.gross_profit)}</strong> (نسبة <strong>{gpMargin.toFixed(1)}%</strong>). وبعد المصاريف التشغيلية (<strong>{j(pl.expenses)}</strong>)،
+            والتسويق (<strong>{j(pl.marketing)}</strong>)، والاستهلاك (<strong>{j(pl.depreciation)}</strong>)، أُغلقت الفترة بصافي{" "}
+            {pl.net_profit >= 0 ? "ربح" : "خسارة"} قدره <strong>{j(Math.abs(pl.net_profit))}</strong> (نسبة {netMargin.toFixed(1)}% من الإيراد).
+            ويُظهر المركز المالي في نهاية الفترة إجمالي أصول قدره <strong>{j(bs.total_assets)}</strong>، مموَّلة بإجمالي مطلوبات{" "}
+            <strong>{j(bs.total_liabilities)}</strong> وإجمالي حقوق ملكية <strong>{j(bs.total_equity)}</strong> ({equityRatio.toFixed(0)}% نسبة الملكية).
+            بلغ العائد على حقوق الملكية للفترة <strong>{pct(roe)}</strong>.
+          </p>
+        </section>
+
+        {/* Key Financial Indicators */}
+        <section className="mb-3">
+          <h3 className="mb-1 text-[10pt] font-bold uppercase tracking-wider text-[#4a3a18]">Key Financial Indicators · المؤشرات المالية الرئيسية</h3>
+          <table className="w-full border-collapse text-[9pt]">
+            <thead>
+              <tr className="bg-[#f3efe6] text-[8pt] uppercase tracking-wider text-[#4a3a18]">
+                <th className="border border-[#e7e0d1] p-1 text-left">Indicator · المؤشر</th>
+                <th className="border border-[#e7e0d1] p-1 text-right">Value · القيمة</th>
+                <th className="border border-[#e7e0d1] p-1 text-left">Reading · التفسير</th>
+              </tr>
+            </thead>
+            <tbody>
+              <KpiRow label="Gross margin · هامش الربح الإجمالي" value={pct(gpMargin)} reading={gpMargin >= 50 ? "Healthy · صحّي" : gpMargin >= 30 ? "Acceptable · مقبول" : "Below benchmark · دون المعيار"} />
+              <KpiRow label="Net margin · هامش الربح الصافي" value={pct(netMargin)} reading={netMargin >= 15 ? "Strong · قوي" : netMargin >= 0 ? "Profitable · مربح" : "Loss · خسارة"} />
+              <KpiRow label="Return on equity (ROE) · العائد على الملكية" value={pct(roe)} reading={roe >= 20 ? "Excellent · ممتاز" : roe > 0 ? "Positive · إيجابي" : "Negative · سلبي"} />
+              <KpiRow label="Equity ratio · نسبة حقوق الملكية" value={pct(equityRatio)} reading={equityRatio >= 50 ? "Solid · متين" : "Leveraged · مرتفع الاعتماد على الديون"} />
+              <KpiRow label="Debt-to-equity · المديونية إلى الملكية" value={debtToEquity.toFixed(2) + "x"} reading={debtToEquity <= 0.5 ? "Conservative · محافظ" : debtToEquity <= 1.5 ? "Moderate · معتدل" : "High · مرتفع"} />
+              <KpiRow label="Current ratio · نسبة التداول" value={currentRatio.toFixed(2) + "x"} reading={currentRatio >= 1.5 ? "Liquid · سيولة جيدة" : currentRatio >= 1 ? "Adequate · كافٍ" : "Tight · ضيق"} />
+              <KpiRow label="Quick ratio · النسبة السريعة" value={quickRatio.toFixed(2) + "x"} reading={quickRatio >= 1 ? "Strong · قوي" : "Inventory-dependent · معتمد على المخزون"} />
+              <KpiRow label="Inventory turnover · دوران المخزون" value={invTurnover.toFixed(2) + "x"} reading={invTurnover >= 4 ? "Fast · سريع" : invTurnover >= 2 ? "Moderate · متوسط" : "Slow · بطيء"} />
+              <KpiRow label="Asset turnover · دوران الأصول" value={assetTurnover.toFixed(2) + "x"} reading={assetTurnover >= 1 ? "Efficient · كفؤ" : "Sub-scale · دون الكفاءة"} />
+            </tbody>
+          </table>
+        </section>
+
+        {/* Audit observations from the existing audits[] array */}
+        <section className="mb-3">
+          <h3 className="mb-1 text-[10pt] font-bold uppercase tracking-wider text-[#4a3a18]">Audit Observations · ملاحظات التدقيق</h3>
+          <div className="space-y-1">
+            {(fin.audits ?? []).map((a) => (
+              <div key={a.key} className="flex items-start gap-2 text-[9pt]">
+                <span className={"mt-0.5 inline-flex size-4 shrink-0 items-center justify-center rounded-full text-[10px] font-bold " + (a.pass ? "bg-success/20 text-success" : "bg-destructive/20 text-destructive")}>
+                  {a.pass ? "✓" : "✗"}
+                </span>
+                <div>
+                  <div className="font-medium">{a.label}</div>
+                  {a.detail && <div className="text-[8.5pt] text-[#7a6e57]">{a.detail}</div>}
+                </div>
+              </div>
+            ))}
+            {(fin.audits ?? []).length === 0 && (
+              <p className="text-[9pt] italic text-[#7a6e57]">No audit checks recorded for this period.</p>
+            )}
+          </div>
+        </section>
+
+        {/* Recommendations */}
+        <section className="mb-3">
+          <h3 className="mb-1 text-[10pt] font-bold uppercase tracking-wider text-[#4a3a18]">Recommendations · التوصيات</h3>
+          <ol className="space-y-1.5 text-[9pt]">
+            {recs.map((r, i) => (
+              <li key={i} className={"rounded-md border p-2 leading-snug " + (
+                r.tone === "warn" ? "border-amber-200 bg-amber-50" :
+                r.tone === "good" ? "border-emerald-200 bg-emerald-50" :
+                "border-sky-200 bg-sky-50"
+              )}>
+                <div><strong>{i + 1}.</strong> {r.en}</div>
+                <div className="mt-0.5" dir="rtl" style={{ fontFamily: "var(--font-arabic)" }}><strong>.{i + 1}</strong> {r.ar}</div>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        {/* GST reminder if any payable */}
+        {gst.net_due > 0 && (
+          <section className="mb-3 rounded-md border border-[#e7e0d1] bg-white/70 p-2 text-[8.5pt]">
+            <strong>GST payable for the period:</strong> {j(gst.net_due)} at {gst.rate}%. File the return and settle before the legal deadline to remain compliant with the General Sales Tax Law of Jordan.<br />
+            <span dir="rtl" style={{ fontFamily: "var(--font-arabic)" }}><strong>ضريبة المبيعات المستحقة:</strong> {j(gst.net_due)} بنسبة {gst.rate}%. أعدّ الإقرار وسدّد قبل الموعد القانوني للالتزام بقانون الضريبة العامة على المبيعات في الأردن.</span>
+          </section>
+        )}
+
+        {/* Auditor signature block */}
+        <section className="mt-4">
+          <h3 className="mb-1 text-[10pt] font-bold uppercase tracking-wider text-[#4a3a18]">Auditor's Note · ملاحظة المدقّق</h3>
+          <p className="text-[8.5pt] italic text-[#7a6e57]">
+            The above commentary is derived from the books and records of the business as recorded in its accounting system for the period stated.
+            Indicators are computed using standard ratio analysis methodology. Recommendations are advisory.
+            <br />
+            <span dir="rtl" style={{ fontFamily: "var(--font-arabic)" }}>
+              تستند التعليقات أعلاه إلى دفاتر وسجلات المنشأة كما هي مُسجّلة في نظامها المحاسبي للفترة المذكورة.
+              تُحتسب المؤشرات وفق منهجية التحليل المالي القياسية. التوصيات استرشادية.
+            </span>
+          </p>
+          <div className="mt-6 grid grid-cols-2 gap-8 text-[9pt]">
+            <div>
+              <div className="border-t border-[#7a6e57]/40 pt-1 text-center">
+                <div className="font-medium">{company?.auditor_name ?? "_____________________"}</div>
+                {company?.auditor_name_ar && <div className="text-[8pt]" dir="rtl" style={{ fontFamily: "var(--font-arabic)" }}>{company.auditor_name_ar}</div>}
+                <div className="text-[8pt] text-[#7a6e57]">
+                  {company?.auditor_firm ?? "Auditor"}{company?.auditor_license ? ` · License ${company.auditor_license}` : ""}
+                </div>
+              </div>
+            </div>
+            <div>
+              <div className="border-t border-[#7a6e57]/40 pt-1 text-center">
+                <div className="font-medium">{company?.name ?? "Zaman Watch"}</div>
+                {company?.name_ar && <div className="text-[8pt]" dir="rtl" style={{ fontFamily: "var(--font-arabic)" }}>{company.name_ar}</div>}
+                <div className="text-[8pt] text-[#7a6e57]">Management Representative · ممثّل الإدارة</div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <footer className="absolute bottom-10 left-14 right-14 border-t border-[#e7e0d1] pt-3 text-center text-[8pt] text-[#7a6e57]">
+        Page 2 of 2 · Auditor's Commentary · {company?.name ?? "Zaman Watch"}
+      </footer>
+    </div>
+  );
+}
+
+function KpiRow({ label, value, reading }: { label: string; value: string; reading: string }) {
+  return (
+    <tr className="bg-white/70 align-top">
+      <td className="border border-[#f1ead9] p-1">{label}</td>
+      <td className="border border-[#f1ead9] p-1 text-right font-mono">{value}</td>
+      <td className="border border-[#f1ead9] p-1 text-[#7a6e57]">{reading}</td>
+    </tr>
   );
 }
 
