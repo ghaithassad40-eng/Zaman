@@ -43,7 +43,7 @@ const PROD_COLS: Col[] = [
   { key: "brand", header: "Brand" },
   { key: "model", header: "Model" },
   { key: "color", header: "Color" },
-  { key: "feature", header: "Feature (Smart / Battery / Automatic)" },
+  { key: "feature", header: "Feature (Smart / Battery / Automatic / Digital)" },
   { key: "gender", header: "Gender (Men / Women)" },
   { key: "description", header: "Description" },
   { key: "opening_qty", header: "Opening Balance Qty" },
@@ -953,6 +953,7 @@ function ProductDialog({
               <option value="Smart">Smart</option>
               <option value="Battery">Battery</option>
               <option value="Automatic">Automatic</option>
+              <option value="Digital">Digital</option>
             </Select>
           </div>
           <div className="space-y-1.5">
