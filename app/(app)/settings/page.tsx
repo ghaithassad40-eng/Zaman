@@ -49,6 +49,7 @@ export default function SettingsPage() {
     email: "",
     address: "",
     auto_packaging: true,
+    show_shop_prices: true,
     commercial_reg: "",
     auditor_name: "",
     auditor_name_ar: "",
@@ -76,6 +77,7 @@ export default function SettingsPage() {
         email: settings.email ?? "",
         address: settings.address ?? "",
         auto_packaging: settings.auto_packaging ?? true,
+        show_shop_prices: settings.show_shop_prices ?? true,
         commercial_reg: settings.commercial_reg ?? "",
         auditor_name: settings.auditor_name ?? "",
         auditor_name_ar: settings.auditor_name_ar ?? "",
@@ -121,6 +123,7 @@ export default function SettingsPage() {
           email: form.email || null,
           address: form.address || null,
           auto_packaging: form.auto_packaging,
+          show_shop_prices: form.show_shop_prices,
           commercial_reg: form.commercial_reg || null,
           auditor_name: form.auditor_name || null,
           auditor_name_ar: form.auditor_name_ar || null,
@@ -242,6 +245,25 @@ export default function SettingsPage() {
                     {Number(settings?.packaging_cost_per_order ?? 0).toFixed(3)} JOD
                   </div>
                 </div>
+              </div>
+              {/* Public shop: should customer-facing cards display the price?
+                  When off, the price block on the shop is hidden — the
+                  customer must request the watch to find out the price. */}
+              <div className="sm:col-span-2 rounded-md border bg-muted/40 p-3">
+                <label className="flex items-start gap-2 text-sm font-medium">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 size-4 accent-[var(--primary)]"
+                    checked={form.show_shop_prices}
+                    onChange={(e) => setForm({ ...form, show_shop_prices: e.target.checked })}
+                  />
+                  <span>
+                    {t("settings.showShopPrices")}
+                    <span className="block text-xs font-normal text-muted-foreground">
+                      {t("settings.showShopPricesHint")}
+                    </span>
+                  </span>
+                </label>
               </div>
               <div className="flex justify-end sm:col-span-2">
                 <Button type="submit" disabled={save.isPending}>

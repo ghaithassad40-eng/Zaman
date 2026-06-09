@@ -218,6 +218,7 @@ export type Database = {
           opening_balance_date: string | null
           packaging_cost_per_order: number
           phone: string | null
+          show_shop_prices: boolean
           tax_number: string | null
           terms_extra_ar: string | null
           terms_extra_en: string | null
@@ -251,6 +252,7 @@ export type Database = {
           opening_balance_date?: string | null
           packaging_cost_per_order?: number
           phone?: string | null
+          show_shop_prices?: boolean
           tax_number?: string | null
           terms_extra_ar?: string | null
           terms_extra_en?: string | null
@@ -284,6 +286,7 @@ export type Database = {
           opening_balance_date?: string | null
           packaging_cost_per_order?: number
           phone?: string | null
+          show_shop_prices?: boolean
           tax_number?: string | null
           terms_extra_ar?: string | null
           terms_extra_en?: string | null

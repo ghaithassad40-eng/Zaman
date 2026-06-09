@@ -62,6 +62,7 @@ type CompanyContact = {
   whatsapp_number: string | null;
   facebook_url: string | null;
   tiktok_url: string | null;
+  show_shop_prices: boolean | null;
 };
 
 export default function ShopPage() {
@@ -121,7 +122,7 @@ export default function ShopPage() {
     queryFn: async (): Promise<CompanyContact | null> => {
       const { data } = await supabase
         .from("company_settings")
-        .select("name, name_ar, phone, email, address, address_ar, instagram_handle, whatsapp_number, facebook_url, tiktok_url")
+        .select("name, name_ar, phone, email, address, address_ar, instagram_handle, whatsapp_number, facebook_url, tiktok_url, show_shop_prices")
         .limit(1)
         .maybeSingle();
       return data as CompanyContact | null;
@@ -179,6 +180,10 @@ export default function ShopPage() {
   const clearFilters = () => { setQ(""); setGender(""); setWatchType(""); setColor(""); };
   const hasFilters = q || gender || watchType || color;
 
+  // If the admin opted out of showing prices on the shop, hide every price
+  // block (cards + request dialog summary). Default is true so existing
+  // installs keep their prices visible.
+  const showPrices = company?.show_shop_prices !== false;
   const phoneClean = (company?.phone ?? "").replace(/[^\d+]/g, "");
   const waNumber = ((company?.whatsapp_number ?? "") || phoneClean).replace(/[^\d+]/g, "").replace(/^\+/, "");
   const ig = (company?.instagram_handle ?? "").replace(/^@+/, "");
@@ -192,13 +197,24 @@ export default function ShopPage() {
           <div className="flex items-center gap-1.5">
             {/* Contact quick actions */}
             {phoneClean && (
-              <a href={`tel:${phoneClean}`} className="hidden items-center gap-1 rounded-md px-2 py-1.5 text-sm text-foreground/80 hover:bg-accent sm:inline-flex" dir="ltr">
-                <Phone className="size-4" /> {company?.phone}
+              <a
+                href={`tel:${phoneClean}`}
+                className="hidden items-center gap-1 rounded-md px-2 py-1.5 text-sm text-foreground/80 hover:bg-accent sm:inline-flex"
+                dir="ltr"
+                aria-label={`${t("common.phone")}: ${company?.phone ?? ""}`}
+              >
+                <Phone className="size-4" aria-hidden /> {company?.phone}
               </a>
             )}
             {waNumber && (
-              <a href={`https://wa.me/${waNumber}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-sm text-success hover:bg-accent">
-                <MessageCircle className="size-4" />
+              <a
+                href={`https://wa.me/${waNumber}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-sm text-success hover:bg-accent"
+                aria-label={t("shop.whatsapp")}
+              >
+                <MessageCircle className="size-4" aria-hidden />
                 <span className="hidden sm:inline">{t("shop.whatsapp")}</span>
               </a>
             )}
@@ -259,7 +275,16 @@ export default function ShopPage() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {filtered.map((p) => {
               const img = p.image_urls?.[0];
-              const price = p.default_selling_price ?? p.expected_selling_price ?? null;
+              // Treat 0 as "no price" — falls through to expected selling
+              // price, then to null. Avoids the customer-facing "JOD 0.000".
+              const rawPrice =
+                (p.default_selling_price && p.default_selling_price > 0
+                  ? p.default_selling_price
+                  : null) ??
+                (p.expected_selling_price && p.expected_selling_price > 0
+                  ? p.expected_selling_price
+                  : null);
+              const price = showPrices ? rawPrice : null;
               const displayName = locale === "ar" && p.name_ar ? p.name_ar : p.name;
               const stats = reviewByProduct.get(p.id);
               return (
@@ -315,11 +340,21 @@ export default function ShopPage() {
                         )}
                       </div>
                       <div className="flex gap-1">
-                        <Button size="sm" variant="ghost" onClick={() => setReviewing(p)} title={t("shop.writeReview")}>
-                          <MessageSquare className="size-3.5" />
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setReviewing(p)}
+                          title={t("shop.writeReview")}
+                          aria-label={t("shop.writeReview")}
+                        >
+                          <MessageSquare className="size-3.5" aria-hidden />
                         </Button>
-                        <Button size="sm" onClick={() => setRequested(p)}>
-                          <Send className="size-3.5" /> {t("shop.request")}
+                        <Button
+                          size="sm"
+                          onClick={() => setRequested(p)}
+                          aria-label={t("shop.request")}
+                        >
+                          <Send className="size-3.5" aria-hidden /> {t("shop.request")}
                         </Button>
                       </div>
                     </div>
@@ -370,18 +405,36 @@ export default function ShopPage() {
           <div className="space-y-1 text-xs">
             <div className="mb-1 font-semibold uppercase text-muted-foreground">{t("shop.followUs")}</div>
             {ig && (
-              <a href={`https://instagram.com/${ig}`} target="_blank" rel="noreferrer" className="flex items-center gap-2 hover:text-primary">
-                <span className="font-bold">IG</span> @{ig}
+              <a
+                href={`https://instagram.com/${ig}`}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-2 hover:text-primary"
+                aria-label={`Instagram @${ig}`}
+              >
+                <span className="font-bold" aria-hidden>IG</span> @{ig}
               </a>
             )}
             {company?.facebook_url && (
-              <a href={company.facebook_url} target="_blank" rel="noreferrer" className="flex items-center gap-2 hover:text-primary">
-                <span className="font-bold">f</span> Facebook
+              <a
+                href={company.facebook_url}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-2 hover:text-primary"
+                aria-label="Facebook"
+              >
+                <span className="font-bold" aria-hidden>f</span> Facebook
               </a>
             )}
             {company?.tiktok_url && (
-              <a href={company.tiktok_url} target="_blank" rel="noreferrer" className="flex items-center gap-2 hover:text-primary">
-                <span className="text-sm leading-none">♪</span> TikTok
+              <a
+                href={company.tiktok_url}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-2 hover:text-primary"
+                aria-label="TikTok"
+              >
+                <span className="text-sm leading-none" aria-hidden>♪</span> TikTok
               </a>
             )}
           </div>
@@ -393,7 +446,7 @@ export default function ShopPage() {
         </div>
       </footer>
 
-      <RequestDialog product={requested} onClose={() => setRequested(null)} />
+      <RequestDialog product={requested} showPrices={showPrices} onClose={() => setRequested(null)} />
       <ReviewDialog product={reviewing} onClose={() => setReviewing(null)} />
       <ReadReviewsDialog product={readingReviews} reviews={readingReviews ? reviewByProduct.get(readingReviews.id)?.rows ?? [] : []} onClose={() => setReadingReviews(null)} />
     </>
@@ -414,7 +467,7 @@ function Stars({ value }: { value: number }) {
   );
 }
 
-function RequestDialog({ product, onClose }: { product: ShopProduct | null; onClose: () => void }) {
+function RequestDialog({ product, showPrices, onClose }: { product: ShopProduct | null; showPrices: boolean; onClose: () => void }) {
   const { t, locale } = useI18n();
   const supabase = createClient();
   const qc = useQueryClient();
@@ -461,9 +514,18 @@ function RequestDialog({ product, onClose }: { product: ShopProduct | null; onCl
             <div className="col-span-2 rounded-md border bg-muted/40 p-3">
               <div className="font-medium">{locale === "ar" && product.name_ar ? product.name_ar : product.name}</div>
               <div className="mt-0.5 flex items-center justify-between text-sm">
-                {(product.default_selling_price ?? product.expected_selling_price) != null && (
-                  <div className="text-primary">{formatJOD(product.default_selling_price ?? product.expected_selling_price!, locale)}</div>
-                )}
+                {showPrices && (() => {
+                  const px =
+                    (product.default_selling_price && product.default_selling_price > 0
+                      ? product.default_selling_price
+                      : null) ??
+                    (product.expected_selling_price && product.expected_selling_price > 0
+                      ? product.expected_selling_price
+                      : null);
+                  return px != null ? (
+                    <div className="text-primary">{formatJOD(px, locale)}</div>
+                  ) : null;
+                })()}
                 <div className={"text-xs " + (max <= 2 ? "font-medium text-amber-700" : "text-muted-foreground")}>
                   {t("shop.availableNow").replace("{n}", String(max))}
                 </div>

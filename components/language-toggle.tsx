@@ -12,8 +12,9 @@ export function LanguageToggle() {
       size="sm"
       onClick={() => setLocale(locale === "ar" ? "en" : "ar")}
       title="Switch language"
+      aria-label={locale === "ar" ? "Switch to English" : "التبديل إلى العربية"}
     >
-      <Languages className="size-4" />
+      <Languages className="size-4" aria-hidden />
       <span className="font-medium">{locale === "ar" ? "EN" : "ع"}</span>
     </Button>
   );
