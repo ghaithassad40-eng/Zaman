@@ -13,9 +13,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Tables } from "@/types/database.types";
+import { ProductCell } from "@/components/product-cell";
 
 type ReviewRow = Tables<"product_reviews"> & {
-  products: { id: string; name: string; sku: string } | null;
+  products: { id: string; name: string; sku: string; image_urls: string[] | null } | null;
 };
 
 export default function ReviewsPage() {
@@ -30,7 +31,7 @@ export default function ReviewsPage() {
     queryFn: async (): Promise<ReviewRow[]> => {
       const { data, error } = await supabase
         .from("product_reviews")
-        .select("*, products(id, name, sku)")
+        .select("*, products(id, name, sku, image_urls)")
         .eq("status", tab)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -103,15 +104,23 @@ export default function ReviewsPage() {
               <CardContent className="p-5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold">{r.products?.name ?? "—"}</span>
-                      <Badge variant={r.status === "approved" ? "success" : r.status === "rejected" ? "destructive" : "warning"}>
-                        {t(`reviews.status.${r.status}` as DictKey)}
-                      </Badge>
-                    </div>
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      {r.customer_name} · {r.products?.sku ?? "—"} · {new Date(r.created_at).toLocaleString()}
-                    </div>
+                    <ProductCell
+                      image={r.products?.image_urls?.[0]}
+                      name={r.products?.name ?? "—"}
+                      meta={
+                        <span className="inline-flex items-center gap-1.5">
+                          <Badge variant={r.status === "approved" ? "success" : r.status === "rejected" ? "destructive" : "warning"}>
+                            {t(`reviews.status.${r.status}` as DictKey)}
+                          </Badge>
+                          <span>·</span>
+                          <span>{r.customer_name}</span>
+                          <span>·</span>
+                          <span>{r.products?.sku ?? "—"}</span>
+                          <span>·</span>
+                          <span>{new Date(r.created_at).toLocaleString()}</span>
+                        </span>
+                      }
+                    />
                     <div className="mt-2 flex items-center gap-1" dir="ltr">
                       {[1, 2, 3, 4, 5].map((i) => (
                         <Star

@@ -15,9 +15,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Tables } from "@/types/database.types";
+import { ProductCell } from "@/components/product-cell";
 
 type RequestRow = Tables<"product_requests"> & {
-  products: { id: string; name: string; default_selling_price: number | null; expected_selling_price: number | null } | null;
+  products: { id: string; name: string; image_urls: string[] | null; default_selling_price: number | null; expected_selling_price: number | null } | null;
 };
 
 export default function RequestsPage() {
@@ -33,7 +34,7 @@ export default function RequestsPage() {
     queryFn: async (): Promise<RequestRow[]> => {
       const { data, error } = await supabase
         .from("product_requests")
-        .select("*, products(id, name, default_selling_price, expected_selling_price)")
+        .select("*, products(id, name, image_urls, default_selling_price, expected_selling_price)")
         .eq("status", tab)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -176,13 +177,18 @@ export default function RequestsPage() {
               <CardContent className="p-5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold">{r.products?.name ?? r.product_name_snapshot}</span>
-                      <Badge variant="secondary" className="text-[10px]">×{r.qty}</Badge>
-                      <Badge variant={r.status === "confirmed" ? "success" : r.status === "rejected" ? "destructive" : "warning"}>
-                        {t(`requests.status.${r.status}` as DictKey)}
-                      </Badge>
-                    </div>
+                    <ProductCell
+                      image={r.products?.image_urls?.[0]}
+                      name={r.products?.name ?? r.product_name_snapshot ?? "—"}
+                      meta={
+                        <span className="inline-flex items-center gap-1.5">
+                          <Badge variant="secondary" className="text-[10px]">×{r.qty}</Badge>
+                          <Badge variant={r.status === "confirmed" ? "success" : r.status === "rejected" ? "destructive" : "warning"}>
+                            {t(`requests.status.${r.status}` as DictKey)}
+                          </Badge>
+                        </span>
+                      }
+                    />
                     <div className="mt-1 text-xs text-muted-foreground">{new Date(r.created_at).toLocaleString()}</div>
                     <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
                       <div className="flex items-center gap-2">

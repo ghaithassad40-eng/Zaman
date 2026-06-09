@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/dialog";
 import { formatJOD, round3 } from "@/lib/utils";
 import { ImportControls } from "@/components/import-controls";
+import { ProductCell } from "@/components/product-cell";
 import { numOr, type Col } from "@/lib/xlsx-utils";
 
 const INV_COLS: Col[] = [
@@ -50,7 +51,7 @@ type Row = {
   product_id: string;
   qty_on_hand: number;
   avg_unit_cost: number;
-  products: { name: string; name_ar: string | null; sku: string } | null;
+  products: { name: string; name_ar: string | null; sku: string; image_urls: string[] | null } | null;
 };
 
 export default function InventoryPage() {
@@ -104,7 +105,7 @@ export default function InventoryPage() {
     queryFn: async (): Promise<Row[]> => {
       const { data, error } = await supabase
         .from("inventory")
-        .select("product_id, qty_on_hand, avg_unit_cost, products(name, name_ar, sku)")
+        .select("product_id, qty_on_hand, avg_unit_cost, products(name, name_ar, sku, image_urls)")
         .order("qty_on_hand", { ascending: false });
       if (error) throw error;
       return (data ?? []) as unknown as Row[];
@@ -153,7 +154,7 @@ export default function InventoryPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>{t("common.name")}</TableHead>
-                  <TableHead>{t("products.sku")}</TableHead>
+                  <TableHead className="hidden md:table-cell">{t("products.sku")}</TableHead>
                   <TableHead className="text-end">{t("products.onHand")}</TableHead>
                   <TableHead className="text-end">{t("products.avgCost")}</TableHead>
                   <TableHead className="text-end">{t("dashboard.stockValue")}</TableHead>
@@ -163,8 +164,14 @@ export default function InventoryPage() {
               <TableBody>
                 {filtered.map((r) => (
                   <TableRow key={r.product_id}>
-                    <TableCell className="font-medium">{nm(r)}</TableCell>
-                    <TableCell className="font-mono text-xs">{r.products?.sku ?? "—"}</TableCell>
+                    <TableCell>
+                      <ProductCell
+                        image={r.products?.image_urls?.[0]}
+                        name={nm(r)}
+                        meta={<span className="font-mono">{r.products?.sku ?? "—"}</span>}
+                      />
+                    </TableCell>
+                    <TableCell className="hidden font-mono text-xs md:table-cell">{r.products?.sku ?? "—"}</TableCell>
                     <TableCell className="text-end">
                       <Badge variant={r.qty_on_hand > 2 ? "success" : r.qty_on_hand > 0 ? "warning" : "secondary"}>
                         {r.qty_on_hand}

@@ -34,7 +34,7 @@ import { formatJOD, round3 } from "@/lib/utils";
 
 type SaleItemMini = {
   description: string | null;
-  products: { name: string | null; sku: string | null; color: string | null } | null;
+  products: { name: string | null; sku: string | null; color: string | null; image_urls: string[] | null } | null;
 };
 type SaleRow = {
   id: string;
@@ -65,7 +65,7 @@ export default function SalesPage() {
     queryFn: async (): Promise<SaleRow[]> => {
       const { data, error } = await supabase
         .from("sales")
-        .select("id, sale_no, sale_date, status, total, gross_profit, fulfillment_stage, return_stage, delivery_vendor_id, customers(name), sale_items(description, products(name, sku, color))")
+        .select("id, sale_no, sale_date, status, total, gross_profit, fulfillment_stage, return_stage, delivery_vendor_id, customers(name), sale_items(description, products(name, sku, color, image_urls))")
         .is("deleted_at", null)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -166,6 +166,7 @@ export default function SalesPage() {
               <TableHeader>
                 <TableRow>
                   <SortableHead sortKey="no" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle}>{t("sales.no")}</SortableHead>
+                  <TableHead>{t("sales.items")}</TableHead>
                   <SortableHead sortKey="customer" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle}>{t("sell.customer")}</SortableHead>
                   <SortableHead sortKey="date" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle}>{t("common.date")}</SortableHead>
                   <SortableHead sortKey="status" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle}>{t("common.status")}</SortableHead>
@@ -178,6 +179,9 @@ export default function SalesPage() {
                 {filtered.map((s) => (
                   <TableRow key={s.id}>
                     <TableCell className="font-medium">{s.sale_no}</TableCell>
+                    <TableCell>
+                      <ItemThumbStrip items={s.sale_items ?? []} />
+                    </TableCell>
                     <TableCell>{s.customers?.name ?? "—"}</TableCell>
                     <TableCell className="text-muted-foreground">{s.sale_date}</TableCell>
                     <TableCell>
@@ -241,6 +245,35 @@ export default function SalesPage() {
       <ReturnDialog sale={retSale} onClose={() => setRetSale(null)} />
       <EditSaleDialog sale={editSale} onClose={() => setEditSale(null)} />
     </>
+  );
+}
+
+/** Strip of up to 3 tiny product thumbnails + "+N" overflow chip.
+ *  Hover over the strip to see the comma-joined item names (title attr). */
+function ItemThumbStrip({ items }: { items: SaleItemMini[] }) {
+  if (!items.length) return <span className="text-xs text-muted-foreground">—</span>;
+  const titles = items.map((it) => it.description ?? it.products?.name ?? "?").join(", ");
+  const shown = items.slice(0, 3);
+  const extra = items.length - shown.length;
+  return (
+    <div className="flex items-center gap-1" title={titles}>
+      {shown.map((it, i) => {
+        const url = it.products?.image_urls?.[0];
+        return (
+          <div key={i} className="relative size-8 shrink-0 overflow-hidden rounded border bg-muted">
+            {url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={url} alt="" aria-hidden loading="lazy" referrerPolicy="no-referrer" className="size-full object-cover" />
+            ) : (
+              <div className="flex size-full items-center justify-center text-[10px] text-muted-foreground/60">⌚</div>
+            )}
+          </div>
+        );
+      })}
+      {extra > 0 && (
+        <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">+{extra}</span>
+      )}
+    </div>
   );
 }
 

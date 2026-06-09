@@ -782,6 +782,7 @@ export const dictionaries = {
     "vendors.closing": "Closing balance",
     "vendors.name": "Vendor name",
 
+    "sales.items": "Items",
     "sales.return": "Return",
     "sales.returned": "Returned",
     "sales.packed": "Packed",
@@ -1622,6 +1623,7 @@ export const dictionaries = {
     "vendors.closing": "الرصيد الختامي",
     "vendors.name": "اسم المورّد",
 
+    "sales.items": "العناصر",
     "sales.return": "إرجاع",
     "sales.returned": "مُرجَع",
     "sales.packed": "مُغلَّف",

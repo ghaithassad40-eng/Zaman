@@ -6,7 +6,7 @@ import QRCode from "qrcode";
 import { createClient } from "@/lib/supabase/client";
 import type { Tables } from "@/types/database.types";
 
-type SaleItem = { description: string | null; qty: number; unit_price: number; line_total: number };
+type SaleItem = { description: string | null; qty: number; unit_price: number; line_total: number; products: { image_urls: string[] | null } | null };
 
 export default function PrintInvoicePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -25,7 +25,7 @@ export default function PrintInvoicePage({ params }: { params: Promise<{ id: str
       if (invoice?.sale_id) {
         const { data: si } = await supabase
           .from("sale_items")
-          .select("description, qty, unit_price, line_total")
+          .select("description, qty, unit_price, line_total, products(image_urls)")
           .eq("sale_id", invoice.sale_id);
         items = (si ?? []) as SaleItem[];
       }
@@ -172,6 +172,7 @@ export default function PrintInvoicePage({ params }: { params: Promise<{ id: str
           <table className="mt-6 w-full border-collapse text-[10pt]">
             <thead>
               <tr className="bg-[#f3efe6] text-left text-[9pt] text-[#4a3a18]">
+                <th className="w-14 border border-[#e7e0d1] p-2"></th>
                 <th className="border border-[#e7e0d1] p-2">Description</th>
                 <th className="w-16 border border-[#e7e0d1] p-2 text-center">Qty</th>
                 <th className="w-32 border border-[#e7e0d1] p-2 text-right">Unit price</th>
@@ -179,16 +180,32 @@ export default function PrintInvoicePage({ params }: { params: Promise<{ id: str
               </tr>
             </thead>
             <tbody>
-              {items.map((it, i) => (
-                <tr key={i} className="bg-white/70">
-                  <td className="border border-[#f1ead9] p-2">{it.description ?? "—"}</td>
-                  <td className="border border-[#f1ead9] p-2 text-center">{it.qty}</td>
-                  <td className="border border-[#f1ead9] p-2 text-right">{j(it.unit_price)}</td>
-                  <td className="border border-[#f1ead9] p-2 text-right">{j(it.line_total)}</td>
-                </tr>
-              ))}
+              {items.map((it, i) => {
+                const img = it.products?.image_urls?.[0];
+                return (
+                  <tr key={i} className="bg-white/70">
+                    <td className="border border-[#f1ead9] p-1 text-center align-middle">
+                      {img ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={img}
+                          alt=""
+                          referrerPolicy="no-referrer"
+                          className="mx-auto size-10 rounded border border-[#e7e0d1] object-cover"
+                        />
+                      ) : (
+                        <span className="text-[#cdbf9a]">⌚</span>
+                      )}
+                    </td>
+                    <td className="border border-[#f1ead9] p-2">{it.description ?? "—"}</td>
+                    <td className="border border-[#f1ead9] p-2 text-center">{it.qty}</td>
+                    <td className="border border-[#f1ead9] p-2 text-right">{j(it.unit_price)}</td>
+                    <td className="border border-[#f1ead9] p-2 text-right">{j(it.line_total)}</td>
+                  </tr>
+                );
+              })}
               {items.length === 0 && (
-                <tr><td colSpan={4} className="border border-[#f1ead9] p-4 text-center text-[#7a6e57]">No items</td></tr>
+                <tr><td colSpan={5} className="border border-[#f1ead9] p-4 text-center text-[#7a6e57]">No items</td></tr>
               )}
             </tbody>
           </table>

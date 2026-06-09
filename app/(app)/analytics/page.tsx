@@ -13,12 +13,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { ProductCell } from "@/components/product-cell";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { formatJOD, round3 } from "@/lib/utils";
 
-type Stat = { id: string; name: string; nameAr: string | null; units: number; revenue: number; cogs: number; profit: number; margin: number; stock: number; turnover: number };
+type Stat = { id: string; name: string; nameAr: string | null; image: string | null; units: number; revenue: number; cogs: number; profit: number; margin: number; stock: number; turnover: number };
 type PeriodRow = { period: string; revenue: number; expenses: number; profit: number };
 type ExpenseRow = { category: string; total: number };
 type Gran = "month" | "quarter" | "year";
@@ -43,7 +44,7 @@ function useAnalytics() {
       const [products, saleItems, sales, expenses] = await Promise.all([
         supabase
           .from("products")
-          .select("id, name, name_ar, inventory(qty_on_hand)")
+          .select("id, name, name_ar, image_urls, inventory(qty_on_hand)")
           .is("deleted_at", null),
         supabase
           .from("sale_items")
@@ -84,6 +85,7 @@ function useAnalytics() {
           id: p.id,
           name: p.name,
           nameAr: p.name_ar,
+          image: ((p.image_urls as string[] | null) ?? [])[0] ?? null,
           units: a.units,
           revenue: round3(a.revenue),
           cogs: round3(a.cogs),
@@ -316,7 +318,7 @@ export default function AnalyticsPage() {
                 <TableBody>
                   {view.profitability.map((s) => (
                     <TableRow key={s.id}>
-                      <TableCell className="font-medium">{nm(s)}</TableCell>
+                      <TableCell><ProductCell image={s.image} name={nm(s)} size="sm" /></TableCell>
                       <TableCell className="text-end text-muted-foreground">{formatJOD(s.revenue, locale)}</TableCell>
                       <TableCell className={`text-end font-medium ${s.profit >= 0 ? "text-success" : "text-destructive"}`}>{formatJOD(s.profit, locale)}</TableCell>
                       <TableCell className="text-end">{s.margin}%</TableCell>
@@ -351,7 +353,7 @@ export default function AnalyticsPage() {
               <TableBody>
                 {view.turnover.map((s) => (
                   <TableRow key={s.id}>
-                    <TableCell className="font-medium">{nm(s)}</TableCell>
+                    <TableCell><ProductCell image={s.image} name={nm(s)} size="sm" /></TableCell>
                     <TableCell className="text-end">{s.units}</TableCell>
                     <TableCell className="text-end text-muted-foreground">{s.stock}</TableCell>
                     <TableCell className="text-end font-semibold">{s.turnover}×</TableCell>
@@ -397,7 +399,7 @@ export default function AnalyticsPage() {
                 <TableBody>
                   {view.reorder.map((s) => (
                     <TableRow key={s.id}>
-                      <TableCell className="font-medium">{nm(s)}</TableCell>
+                      <TableCell><ProductCell image={s.image} name={nm(s)} size="sm" /></TableCell>
                       <TableCell className="text-end">{s.units}</TableCell>
                       <TableCell className="text-end"><Badge variant="warning">{s.stock}</Badge></TableCell>
                     </TableRow>
@@ -421,7 +423,7 @@ export default function AnalyticsPage() {
               <TableBody>
                 {view.slowMovers.map((s) => (
                   <TableRow key={s.id}>
-                    <TableCell className="font-medium">{nm(s)}</TableCell>
+                    <TableCell><ProductCell image={s.image} name={nm(s)} size="sm" /></TableCell>
                     <TableCell className="text-end text-muted-foreground">{s.units}</TableCell>
                     <TableCell className="text-end"><Badge variant="secondary">{s.stock}</Badge></TableCell>
                   </TableRow>

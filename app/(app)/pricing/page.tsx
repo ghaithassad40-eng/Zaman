@@ -63,12 +63,14 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatJOD, round3 } from "@/lib/utils";
 import { useSort, SortableHead } from "@/components/ui/sortable-head";
+import { ProductCell } from "@/components/product-cell";
 
 type Row = {
   id: string;
   name: string;
   brand: string | null;
   color: string | null;
+  image_urls: string[] | null;
   qty_on_hand: number;
   avg_unit_cost: number;
   default_selling_price: number;
@@ -108,7 +110,7 @@ export default function PricingPage() {
       const { data, error } = await supabase
         .from("products")
         .select(
-          "id, name, brand, color, default_selling_price, expected_selling_price, inventory(qty_on_hand, avg_unit_cost)",
+          "id, name, brand, color, image_urls, default_selling_price, expected_selling_price, inventory(qty_on_hand, avg_unit_cost)",
         )
         .eq("is_active", true)
         .is("deleted_at", null)
@@ -121,6 +123,7 @@ export default function PricingPage() {
           name: p.name,
           brand: p.brand ?? null,
           color: p.color ?? null,
+          image_urls: (p.image_urls as string[] | null) ?? null,
           qty_on_hand: Number(inv?.qty_on_hand ?? 0),
           avg_unit_cost: Number(inv?.avg_unit_cost ?? 0),
           default_selling_price: Number(p.default_selling_price ?? 0),
@@ -470,29 +473,34 @@ export default function PricingPage() {
                     return (
                       <TableRow key={r.id}>
                         <TableCell>
-                          <div className="font-medium">{r.name}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {[r.brand, r.color].filter(Boolean).join(" · ")}
-                          </div>
-                          <div className="mt-0.5 flex flex-wrap gap-1">
-                            {r.belowCost && (
-                              <Badge variant="destructive" className="text-[10px]">
-                                {t("pricing.flagBelowCost")}
-                              </Badge>
-                            )}
-                            {r.noPrice && (
-                              <Badge variant="warning" className="text-[10px]">
-                                {t("pricing.flagNoPrice")}
-                              </Badge>
-                            )}
-                            {r.currentMargin != null &&
-                              !r.belowCost &&
-                              r.currentMargin < marginPct && (
-                                <Badge variant="outline" className="text-[10px]">
-                                  {t("pricing.flagUnderTarget")}
-                                </Badge>
-                              )}
-                          </div>
+                          <ProductCell
+                            image={r.image_urls?.[0]}
+                            name={r.name}
+                            meta={
+                              <>
+                                <span>{[r.brand, r.color].filter(Boolean).join(" · ")}</span>
+                                <span className="ms-2 inline-flex flex-wrap gap-1 align-middle">
+                                  {r.belowCost && (
+                                    <Badge variant="destructive" className="text-[10px]">
+                                      {t("pricing.flagBelowCost")}
+                                    </Badge>
+                                  )}
+                                  {r.noPrice && (
+                                    <Badge variant="warning" className="text-[10px]">
+                                      {t("pricing.flagNoPrice")}
+                                    </Badge>
+                                  )}
+                                  {r.currentMargin != null &&
+                                    !r.belowCost &&
+                                    r.currentMargin < marginPct && (
+                                      <Badge variant="outline" className="text-[10px]">
+                                        {t("pricing.flagUnderTarget")}
+                                      </Badge>
+                                    )}
+                                </span>
+                              </>
+                            }
+                          />
                         </TableCell>
                         <TableCell className="text-end">{formatJOD(r.avg_unit_cost, locale)}</TableCell>
                         <TableCell className="text-end">
