@@ -82,7 +82,13 @@ export function SortableHead({
         )}
       >
         <span>{children}</span>
-        <Icon className={cn("size-3 shrink-0", active ? "opacity-100" : "opacity-40 group-hover:opacity-70")} />
+        {/* Sort glyph: always rendered so users see at a glance that the
+            column is sortable; brightens on hover, becomes full opacity
+            (and switches to the directional arrow) when active. */}
+        <Icon
+          aria-hidden
+          className={cn("size-3 shrink-0", active ? "opacity-100" : "opacity-60 group-hover:opacity-100")}
+        />
       </button>
     </TableHead>
   );

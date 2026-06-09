@@ -22,7 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { formatJOD } from "@/lib/utils";
+import { formatJODShop } from "@/lib/utils";
 
 type ShopProduct = {
   id: string;
@@ -73,6 +73,7 @@ export default function ShopPage() {
   const [gender, setGender] = useState("");
   const [watchType, setWatchType] = useState("");
   const [color, setColor] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [requested, setRequested] = useState<ShopProduct | null>(null);
   const [reviewing, setReviewing] = useState<ShopProduct | null>(null);
   const [readingReviews, setReadingReviews] = useState<ShopProduct | null>(null);
@@ -230,30 +231,48 @@ export default function ShopPage() {
           <p className="mt-2 text-sm text-muted-foreground sm:text-base">{t("shop.heroSubtitle")}</p>
         </div>
 
-        {/* Filters */}
-        <Card className="mb-6">
-          <CardContent className="grid gap-3 p-4 sm:grid-cols-4">
-            <div className="relative">
-              <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input className="ps-9" placeholder={t("shop.searchPlaceholder")} value={q} onChange={(e) => setQ(e.target.value)} />
+        {/* Filters — sticky under the page header so users can refine without
+            scrolling back to the top. The header itself is ~60px; we offset
+            from the page-scroll origin (header is sticky), so we anchor at
+            top-[60px] for tablet+. On mobile we collapse the dropdowns
+            behind a single Filters disclosure so the first card is closer to
+            the fold. */}
+        <Card className="sticky top-[60px] z-[5] mb-6">
+          <CardContent className="p-4">
+            <div className="grid gap-3 sm:grid-cols-4">
+              <div className="relative">
+                <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input className="ps-9" placeholder={t("shop.searchPlaceholder")} value={q} onChange={(e) => setQ(e.target.value)} />
+              </div>
+              <div className={"contents " + (filtersOpen ? "" : "max-sm:hidden sm:contents")}>
+                <Select value={gender} onChange={(e) => setGender(e.target.value)}>
+                  <option value="">{t("shop.allGenders")}</option>
+                  <option value="men">{t("shop.men")}</option>
+                  <option value="women">{t("shop.women")}</option>
+                  <option value="unisex">{t("shop.unisex")}</option>
+                </Select>
+                <Select value={watchType} onChange={(e) => setWatchType(e.target.value)}>
+                  <option value="">{t("shop.allTypes")}</option>
+                  <option value="battery">{t("shop.battery")}</option>
+                  <option value="automatic">{t("shop.automatic")}</option>
+                  <option value="smartwatch">{t("shop.smartwatch")}</option>
+                  <option value="other">{t("shop.otherType")}</option>
+                </Select>
+                <Select value={color} onChange={(e) => setColor(e.target.value)}>
+                  <option value="">{t("shop.allColors")}</option>
+                  {colors.map((c) => <option key={c} value={c}>{c}</option>)}
+                </Select>
+              </div>
             </div>
-            <Select value={gender} onChange={(e) => setGender(e.target.value)}>
-              <option value="">{t("shop.allGenders")}</option>
-              <option value="men">{t("shop.men")}</option>
-              <option value="women">{t("shop.women")}</option>
-              <option value="unisex">{t("shop.unisex")}</option>
-            </Select>
-            <Select value={watchType} onChange={(e) => setWatchType(e.target.value)}>
-              <option value="">{t("shop.allTypes")}</option>
-              <option value="battery">{t("shop.battery")}</option>
-              <option value="automatic">{t("shop.automatic")}</option>
-              <option value="smartwatch">{t("shop.smartwatch")}</option>
-              <option value="other">{t("shop.otherType")}</option>
-            </Select>
-            <Select value={color} onChange={(e) => setColor(e.target.value)}>
-              <option value="">{t("shop.allColors")}</option>
-              {colors.map((c) => <option key={c} value={c}>{c}</option>)}
-            </Select>
+            <button
+              type="button"
+              onClick={() => setFiltersOpen((o) => !o)}
+              className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground sm:hidden"
+              aria-expanded={filtersOpen}
+              aria-controls="shop-filters"
+            >
+              {filtersOpen ? t("shop.hideFilters") : t("shop.moreFilters")}
+            </button>
           </CardContent>
         </Card>
 
@@ -334,7 +353,7 @@ export default function ShopPage() {
                     <div className="flex items-end justify-between pt-1">
                       <div>
                         {price != null ? (
-                          <div className="text-lg font-bold text-primary">{formatJOD(price, locale)}</div>
+                          <div className="text-lg font-bold text-primary">{formatJODShop(price, locale)}</div>
                         ) : (
                           <div className="text-sm text-muted-foreground">{t("shop.contactForPrice")}</div>
                         )}
@@ -377,33 +396,45 @@ export default function ShopPage() {
       </main>
 
       <footer className="mt-12 border-t bg-card">
-        <div className="mx-auto grid max-w-7xl gap-6 px-4 py-8 sm:grid-cols-3 sm:px-6">
-          <div>
-            <div className="font-bold text-primary">{locale === "ar" && company?.name_ar ? company.name_ar : (company?.name ?? "Zaman Watch")}</div>
-            {(locale === "ar" ? company?.address_ar : company?.address) && (
-              <div className="mt-1 text-xs text-muted-foreground">{locale === "ar" ? company?.address_ar : company?.address}</div>
-            )}
-          </div>
-          <div className="space-y-1 text-xs">
-            <div className="mb-1 font-semibold uppercase text-muted-foreground">{t("shop.contact")}</div>
-            {company?.phone && (
-              <a href={`tel:${phoneClean}`} className="flex items-center gap-2 hover:text-primary" dir="ltr">
-                <Phone className="size-3.5" /> {company.phone}
-              </a>
-            )}
-            {waNumber && (
-              <a href={`https://wa.me/${waNumber}`} target="_blank" rel="noreferrer" className="flex items-center gap-2 hover:text-primary">
-                <MessageCircle className="size-3.5" /> {t("shop.whatsappFull")}
-              </a>
-            )}
-            {company?.email && (
-              <a href={`mailto:${company.email}`} className="flex items-center gap-2 hover:text-primary" dir="ltr">
-                ✉ {company.email}
-              </a>
-            )}
-          </div>
-          <div className="space-y-1 text-xs">
-            <div className="mb-1 font-semibold uppercase text-muted-foreground">{t("shop.followUs")}</div>
+        {(() => {
+          const hasContact = !!(company?.phone || waNumber || company?.email);
+          const hasSocial = !!(ig || company?.facebook_url || company?.tiktok_url);
+          // Render a 1/2/3 column layout depending on how many sections have
+          // any data. Empty section + empty section + brand looked broken.
+          const cols = 1 + (hasContact ? 1 : 0) + (hasSocial ? 1 : 0);
+          const gridClass =
+            cols === 3 ? "sm:grid-cols-3" : cols === 2 ? "sm:grid-cols-2" : "sm:grid-cols-1";
+          return (
+            <div className={`mx-auto grid max-w-7xl gap-6 px-4 py-8 sm:px-6 ${gridClass}`}>
+              <div>
+                <div className="font-bold text-primary">{locale === "ar" && company?.name_ar ? company.name_ar : (company?.name ?? "Zaman Watch")}</div>
+                {(locale === "ar" ? company?.address_ar : company?.address) && (
+                  <div className="mt-1 text-xs text-muted-foreground">{locale === "ar" ? company?.address_ar : company?.address}</div>
+                )}
+              </div>
+              {hasContact && (
+                <div className="space-y-1 text-xs">
+                  <div className="mb-1 font-semibold uppercase text-muted-foreground">{t("shop.contact")}</div>
+                  {company?.phone && (
+                    <a href={`tel:${phoneClean}`} className="flex items-center gap-2 hover:text-primary" dir="ltr">
+                      <Phone className="size-3.5" aria-hidden /> {company.phone}
+                    </a>
+                  )}
+                  {waNumber && (
+                    <a href={`https://wa.me/${waNumber}`} target="_blank" rel="noreferrer" className="flex items-center gap-2 hover:text-primary" aria-label={t("shop.whatsapp")}>
+                      <MessageCircle className="size-3.5" aria-hidden /> {t("shop.whatsappFull")}
+                    </a>
+                  )}
+                  {company?.email && (
+                    <a href={`mailto:${company.email}`} className="flex items-center gap-2 hover:text-primary" dir="ltr">
+                      <span aria-hidden>✉</span> {company.email}
+                    </a>
+                  )}
+                </div>
+              )}
+              {hasSocial && (
+                <div className="space-y-1 text-xs">
+                  <div className="mb-1 font-semibold uppercase text-muted-foreground">{t("shop.followUs")}</div>
             {ig && (
               <a
                 href={`https://instagram.com/${ig}`}
@@ -437,8 +468,11 @@ export default function ShopPage() {
                 <span className="text-sm leading-none" aria-hidden>♪</span> TikTok
               </a>
             )}
-          </div>
-        </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
         <div className="border-t bg-background/50">
           <div className="mx-auto max-w-7xl px-4 py-4 text-center text-[11px] text-muted-foreground sm:px-6">
             © {new Date().getFullYear()} {locale === "ar" && company?.name_ar ? company.name_ar : (company?.name ?? "Zaman Watch")}
@@ -523,7 +557,7 @@ function RequestDialog({ product, showPrices, onClose }: { product: ShopProduct 
                       ? product.expected_selling_price
                       : null);
                   return px != null ? (
-                    <div className="text-primary">{formatJOD(px, locale)}</div>
+                    <div className="text-primary">{formatJODShop(px, locale)}</div>
                   ) : null;
                 })()}
                 <div className={"text-xs " + (max <= 2 ? "font-medium text-amber-700" : "text-muted-foreground")}>

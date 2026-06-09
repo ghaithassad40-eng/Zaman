@@ -16,6 +16,19 @@ export function formatJOD(amount: number | null | undefined, locale = "en"): str
   }).format(n);
 }
 
+/** Customer-facing JOD format with 2 decimal places. The accounting layer
+ *  keeps 3-decimal precision (fils) — this is only for the public shop where
+ *  ".000" looks like a software glitch to non-finance visitors. */
+export function formatJODShop(amount: number | null | undefined, locale = "en"): string {
+  const n = Number(amount ?? 0);
+  return new Intl.NumberFormat(locale === "ar" ? "ar-JO" : "en-JO", {
+    style: "currency",
+    currency: "JOD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(n);
+}
+
 /** Plain number with 3 decimals (no currency symbol). */
 export function num3(amount: number | null | undefined): string {
   return Number(amount ?? 0).toFixed(3);
