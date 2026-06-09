@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Search, Watch, X, Send, Loader2, Phone, MessageCircle, Star, MessageSquare } from "lucide-react";
@@ -77,6 +77,40 @@ export default function ShopPage() {
   const [requested, setRequested] = useState<ShopProduct | null>(null);
   const [reviewing, setReviewing] = useState<ShopProduct | null>(null);
   const [readingReviews, setReadingReviews] = useState<ShopProduct | null>(null);
+  // Gender gate: a chooser is shown before the catalogue until the visitor
+  // picks Men / Women / Unisex / All. The choice persists in a cookie so
+  // returning visitors land straight in their browsed section, but they can
+  // always change it from the header. `null` = not yet decided this session.
+  const [gateChosen, setGateChosen] = useState<boolean | null>(null);
+  useEffect(() => {
+    // Read on mount only — running on the client.
+    const m = document.cookie.match(/(?:^|;\s*)zw_shop_gender=([^;]+)/);
+    if (m) {
+      const v = decodeURIComponent(m[1]);
+      if (v === "all") {
+        setGateChosen(true);
+      } else if (["men", "women", "unisex"].includes(v)) {
+        setGender(v);
+        setGateChosen(true);
+      } else {
+        setGateChosen(false);
+      }
+    } else {
+      setGateChosen(false);
+    }
+  }, []);
+
+  function pickGender(value: "men" | "women" | "unisex" | "all") {
+    // Persist 30 days. "all" still records a choice so the gate stays dismissed.
+    document.cookie = `zw_shop_gender=${value}; path=/; max-age=${60 * 60 * 24 * 30}; samesite=lax`;
+    setGender(value === "all" ? "" : value);
+    setGateChosen(true);
+  }
+  function resetGate() {
+    document.cookie = "zw_shop_gender=; path=/; max-age=0";
+    setGender("");
+    setGateChosen(false);
+  }
 
   const { data, isLoading } = useQuery({
     queryKey: ["shop-products"],
@@ -224,11 +258,28 @@ export default function ShopPage() {
         </div>
       </header>
 
+      {gateChosen === false && (
+        <GenderGate t={t} onPick={pickGender} />
+      )}
+
+      {gateChosen && (
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
         {/* Hero */}
         <div className="mb-8 text-center">
           <h1 className="text-3xl font-bold sm:text-4xl">{t("shop.heroTitle")}</h1>
           <p className="mt-2 text-sm text-muted-foreground sm:text-base">{t("shop.heroSubtitle")}</p>
+          {/* Show which audience the customer chose, with a chip to switch.
+              Keeps the choice visible — otherwise a returning visitor may
+              wonder why the catalogue looks smaller than expected. */}
+          <div className="mt-3 inline-flex items-center gap-2 rounded-full border bg-card px-3 py-1 text-xs">
+            <span className="text-muted-foreground">{t("shop.showingFor")}</span>
+            <span className="font-medium">
+              {gender ? t(`shop.${gender as "men" | "women" | "unisex"}`) : t("shop.everyone")}
+            </span>
+            <button onClick={resetGate} className="text-primary hover:underline" type="button">
+              {t("shop.change")}
+            </button>
+          </div>
         </div>
 
         {/* Filters — sticky under the page header so users can refine without
@@ -395,6 +446,7 @@ export default function ShopPage() {
           </div>
         )}
       </main>
+      )}
 
       <footer className="mt-12 border-t bg-card">
         {(() => {
@@ -485,6 +537,51 @@ export default function ShopPage() {
       <ReviewDialog product={reviewing} onClose={() => setReviewing(null)} />
       <ReadReviewsDialog product={readingReviews} reviews={readingReviews ? reviewByProduct.get(readingReviews.id)?.rows ?? [] : []} onClose={() => setReadingReviews(null)} />
     </>
+  );
+}
+
+/**
+ * Full-screen gender chooser shown on first visit. Big tap targets, big
+ * imagery, no decisions buried — only "who is shopping?" The 4 cards stack
+ * vertically on phones and lay out 2×2 / 4-up on wider viewports.
+ *
+ * `onPick` writes the choice to a 30-day cookie so returning visitors land
+ * straight on the filtered catalogue. The cookie is exposed via the header
+ * "Change" button so the customer can reset without clearing storage.
+ */
+function GenderGate({
+  t,
+  onPick,
+}: {
+  t: (k: import("@/lib/i18n/dictionaries").DictKey) => string;
+  onPick: (v: "men" | "women" | "unisex" | "all") => void;
+}) {
+  return (
+    <main className="mx-auto flex max-w-5xl flex-col items-center px-4 py-12 sm:px-6">
+      <div className="mb-8 text-center">
+        <h1 className="text-3xl font-bold sm:text-4xl">{t("shop.gateTitle")}</h1>
+        <p className="mt-2 text-sm text-muted-foreground sm:text-base">{t("shop.gateSubtitle")}</p>
+      </div>
+      <div className="grid w-full max-w-3xl gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <GateCard onClick={() => onPick("men")} label={t("shop.men")} emoji="👨" />
+        <GateCard onClick={() => onPick("women")} label={t("shop.women")} emoji="👩" />
+        <GateCard onClick={() => onPick("unisex")} label={t("shop.unisex")} emoji="🧑" />
+        <GateCard onClick={() => onPick("all")} label={t("shop.everyone")} emoji="✨" />
+      </div>
+    </main>
+  );
+}
+
+function GateCard({ onClick, label, emoji }: { onClick: () => void; label: string; emoji: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group flex aspect-square flex-col items-center justify-center gap-3 rounded-xl border-2 border-border bg-card p-6 text-lg font-semibold shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+    >
+      <span className="text-5xl transition-transform group-hover:scale-110" aria-hidden>{emoji}</span>
+      <span>{label}</span>
+    </button>
   );
 }
 
