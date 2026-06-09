@@ -70,6 +70,7 @@ type Row = {
   name: string;
   brand: string | null;
   color: string | null;
+  watch_type: string | null;
   image_urls: string[] | null;
   qty_on_hand: number;
   avg_unit_cost: number;
@@ -79,6 +80,21 @@ type Row = {
 
 type Method = "markup" | "margin" | "keystone" | "anchor";
 type Rounding = "none" | "round5" | "endsIn99" | "endsIn95" | "wholeJod";
+
+/** Reference price bands for the Jordan retail market, in JOD per item.
+ *  These are sensible defaults drawn from the local watch reseller scene
+ *  (Shein-style imports → markup); the operator can override them inline.
+ *  A suggested price below `low` flags "underpriced for the market"; above
+ *  `high` flags "above market" (risk of stalling). The middle band is the
+ *  typical sweet spot Jordanian customers pay without negotiating. */
+const JORDAN_BANDS_DEFAULT: Record<string, { low: number; high: number }> = {
+  battery: { low: 8, high: 25 },
+  digital: { low: 10, high: 30 },
+  smartwatch: { low: 15, high: 50 },
+  automatic: { low: 25, high: 80 },
+  other: { low: 10, high: 40 },
+  unknown: { low: 10, high: 40 },
+};
 
 const DEFAULTS = {
   method: "margin" as Method,
@@ -104,13 +120,106 @@ export default function PricingPage() {
   const [rounding, setRounding] = useState<Rounding>(DEFAULTS.rounding);
   const [busy, setBusy] = useState<string | null>(null);
 
+  // ── Overhead inputs (the big idea of v2) ─────────────────────────────────
+  // Each watch has to absorb a slice of the monthly fixed costs (assets
+  // depreciating + marketing spend) plus the per-order packaging gift items.
+  // We seed values from real DB rolling-90d averages and let the operator
+  // override anything inline. Per-unit overhead = monthly fixed costs ÷
+  // expected monthly units sold.
+  const [overheadOn, setOverheadOn] = useState(true);
+  const [packagingPerUnit, setPackagingPerUnit] = useState<number | null>(null);
+  const [monthlyDepreciation, setMonthlyDepreciation] = useState<number | null>(null);
+  const [monthlyMarketing, setMonthlyMarketing] = useState<number | null>(null);
+  const [expectedMonthlyUnits, setExpectedMonthlyUnits] = useState<number | null>(null);
+  const [marketCheckOn, setMarketCheckOn] = useState(true);
+  // User-editable market bands per type (default from JORDAN_BANDS_DEFAULT).
+  const [bands, setBands] = useState<Record<string, { low: number; high: number }>>(JORDAN_BANDS_DEFAULT);
+
+  /** Pull cost-basis seeds: monthly depreciation, 90-day marketing average,
+   *  90-day units-sold average. These feed the overhead inputs above as
+   *  initial values — the operator can override any of them. */
+  const { data: costBasis } = useQuery({
+    queryKey: ["pricing-cost-basis"],
+    queryFn: async () => {
+      const [assetsRes, mktRes, unitsRes] = await Promise.all([
+        supabase.from("v_assets").select("monthly_depreciation"),
+        supabase
+          .from("cash_transactions")
+          .select("amount, txn_date, category, direction")
+          .eq("direction", "out")
+          .in("category", ["marketing", "ads"]),
+        supabase
+          .from("sale_items")
+          .select("qty, sales(sale_date, status, deleted_at)")
+          .not("sales", "is", null),
+      ]);
+      const monthlyDep = (assetsRes.data ?? []).reduce(
+        (s, r) => s + Number(r.monthly_depreciation ?? 0),
+        0,
+      );
+      // 90-day rolling average of marketing spend, expressed monthly.
+      const ninetyAgo = new Date(Date.now() - 90 * 86400_000).toISOString().slice(0, 10);
+      const mktSum = (mktRes.data ?? [])
+        .filter((r) => (r.txn_date ?? "") >= ninetyAgo)
+        .reduce((s, r) => s + Number(r.amount ?? 0), 0);
+      const monthlyMkt = mktSum / 3;
+      // 90-day units sold (real sales only) → monthly average.
+      const unitsSum = (unitsRes.data ?? [])
+        .filter((r) => {
+          const s = r.sales as { sale_date?: string; status?: string; deleted_at?: string | null } | null;
+          if (!s || s.deleted_at) return false;
+          if (s.status === "cancelled" || s.status === "returned") return false;
+          return (s.sale_date ?? "") >= ninetyAgo;
+        })
+        .reduce((s, r) => s + Number(r.qty ?? 0), 0);
+      const monthlyUnits = unitsSum / 3;
+      return {
+        monthlyDep: round3(monthlyDep),
+        monthlyMkt: round3(monthlyMkt),
+        monthlyUnits: Math.max(1, Math.round(monthlyUnits)),
+      };
+    },
+  });
+
+  // Once the seed query returns, set the inputs (the user can still override).
+  useMemo(() => {
+    if (!costBasis) return;
+    if (monthlyDepreciation == null) setMonthlyDepreciation(costBasis.monthlyDep);
+    if (monthlyMarketing == null) setMonthlyMarketing(costBasis.monthlyMkt);
+    // Default to a sensible floor of 30 units/month when there is no history.
+    if (expectedMonthlyUnits == null)
+      setExpectedMonthlyUnits(Math.max(30, costBasis.monthlyUnits));
+    if (packagingPerUnit == null)
+      setPackagingPerUnit(Number(settings?.packaging_cost_per_order ?? 0));
+    // We only want to seed once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [costBasis, settings?.packaging_cost_per_order]);
+
+  /** Per-unit overhead = (monthly depreciation + monthly marketing) ÷
+   *  expected monthly units. Returns 0 if overhead is disabled or the user
+   *  hasn't picked an expected-units number. */
+  const overheadPerUnit = useMemo(() => {
+    if (!overheadOn) return 0;
+    const units = Math.max(1, expectedMonthlyUnits ?? 0);
+    const dep = monthlyDepreciation ?? 0;
+    const mkt = monthlyMarketing ?? 0;
+    return round3((dep + mkt) / units);
+  }, [overheadOn, expectedMonthlyUnits, monthlyDepreciation, monthlyMarketing]);
+
+  /** Effective per-unit cost the operator should price ABOVE to make money.
+   *  Wraps the raw inventory cost with packaging gift items + the
+   *  proportional overhead slice computed above. */
+  function trueCost(unitCost: number): number {
+    return round3(unitCost + (packagingPerUnit ?? 0) + overheadPerUnit);
+  }
+
   const { data: rows, isLoading } = useQuery({
     queryKey: ["pricing-rows"],
     queryFn: async (): Promise<Row[]> => {
       const { data, error } = await supabase
         .from("products")
         .select(
-          "id, name, brand, color, image_urls, default_selling_price, expected_selling_price, inventory(qty_on_hand, avg_unit_cost)",
+          "id, name, brand, color, watch_type, image_urls, default_selling_price, expected_selling_price, inventory(qty_on_hand, avg_unit_cost)",
         )
         .eq("is_active", true)
         .is("deleted_at", null)
@@ -123,6 +232,7 @@ export default function PricingPage() {
           name: p.name,
           brand: p.brand ?? null,
           color: p.color ?? null,
+          watch_type: (p.watch_type as string | null) ?? null,
           image_urls: (p.image_urls as string[] | null) ?? null,
           qty_on_hand: Number(inv?.qty_on_hand ?? 0),
           avg_unit_cost: Number(inv?.avg_unit_cost ?? 0),
@@ -136,8 +246,9 @@ export default function PricingPage() {
   });
 
   /** Suggested selling price for one product under the current strategy.
-   *  Returns 0 when there is no cost basis and no anchor — the operator
-   *  hasn't given enough information for a recommendation. */
+   *  `cost` here is the TRUE landed cost (raw unit + packaging + overhead),
+   *  not just inventory cost. Returns 0 when there is no cost basis and no
+   *  anchor — the operator hasn't given enough information for a recommendation. */
   function suggest(cost: number): number {
     if (cost <= 0 && method !== "anchor") return 0;
     let p = 0;
@@ -187,31 +298,49 @@ export default function PricingPage() {
   const enriched = useMemo(() => {
     if (!rows) return [];
     return rows.map((r) => {
-      const suggested = suggest(r.avg_unit_cost);
+      const landed = trueCost(r.avg_unit_cost);
+      const suggested = suggest(landed);
       const current = r.default_selling_price || r.expected_selling_price || 0;
-      // gross margin% on the CURRENT selling price (operator's status quo)
+      // gross margin% is now measured against TRUE landed cost (includes
+      // packaging + overhead share), not just the raw inventory cost. This
+      // is how the operator actually makes money.
       const currentMargin =
-        current > 0 && r.avg_unit_cost > 0
-          ? ((current - r.avg_unit_cost) / current) * 100
+        current > 0 && landed > 0
+          ? ((current - landed) / current) * 100
           : current > 0
           ? 100
           : null;
       const suggestedMargin =
-        suggested > 0 && r.avg_unit_cost > 0
-          ? ((suggested - r.avg_unit_cost) / suggested) * 100
+        suggested > 0 && landed > 0
+          ? ((suggested - landed) / suggested) * 100
           : null;
+      // Jordan market band lookup. Falls back to "unknown" defaults so a
+      // product with no watch_type still gets a sanity check.
+      const bandKey = (r.watch_type ?? "unknown") as keyof typeof bands;
+      const band = bands[bandKey] ?? bands.unknown;
+      const marketPos: "below" | "in" | "above" =
+        !marketCheckOn || suggested <= 0
+          ? "in"
+          : suggested < band.low
+          ? "below"
+          : suggested > band.high
+          ? "above"
+          : "in";
       return {
         ...r,
+        landed,
         current,
         currentMargin,
         suggested,
         suggestedMargin,
         delta: suggested - current,
-        belowCost: current > 0 && current < r.avg_unit_cost,
+        belowCost: current > 0 && current < landed,
         noPrice: current === 0,
+        marketBand: band,
+        marketPos,
       };
     });
-  }, [rows, method, markupPct, marginPct, anchorPrice, includeGst, rounding, gstRate]);
+  }, [rows, method, markupPct, marginPct, anchorPrice, includeGst, rounding, gstRate, overheadPerUnit, packagingPerUnit, bands, marketCheckOn]);
 
   // ── Health summary ───────────────────────────────────────────────────────
   const health = useMemo(() => {
@@ -238,6 +367,7 @@ export default function PricingPage() {
         switch (key) {
           case "name": return r.name;
           case "cost": return r.avg_unit_cost;
+          case "landed": return r.landed;
           case "current": return r.current;
           case "currentMargin": return r.currentMargin;
           case "suggested": return r.suggested;
@@ -315,6 +445,8 @@ export default function PricingPage() {
             suggest={suggest}
             locale={locale}
             t={t}
+            packagingPerUnit={packagingPerUnit ?? 0}
+            overheadPerUnit={overheadPerUnit}
           />
         </CardContent>
       </Card>
@@ -352,6 +484,132 @@ export default function PricingPage() {
           />
         </div>
       )}
+
+      {/* ── Cost stack inputs (the v2 idea) ────────────────────────────── */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>{t("pricing.overheadTitle")}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="mb-4 flex items-start gap-2 rounded-md border border-sky-200 bg-sky-50 p-3 text-xs text-sky-900">
+            <Info className="size-4 shrink-0" aria-hidden />
+            <p>{t("pricing.overheadHint")}</p>
+          </div>
+          <label className="mb-4 inline-flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="size-4 accent-[var(--primary)]"
+              checked={overheadOn}
+              onChange={(e) => setOverheadOn(e.target.checked)}
+            />
+            {t("pricing.factorOverhead")}
+          </label>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Field label={t("pricing.packagingPerUnit")}>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number" min={0} step="0.001" dir="ltr"
+                  value={packagingPerUnit ?? 0}
+                  onChange={(e) => setPackagingPerUnit(Math.max(0, Number(e.target.value) || 0))}
+                  disabled={!overheadOn}
+                />
+                <span className="text-xs text-muted-foreground">JOD</span>
+              </div>
+            </Field>
+            <Field label={t("pricing.monthlyDep")}>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number" min={0} step="0.001" dir="ltr"
+                  value={monthlyDepreciation ?? 0}
+                  onChange={(e) => setMonthlyDepreciation(Math.max(0, Number(e.target.value) || 0))}
+                  disabled={!overheadOn}
+                />
+                <span className="text-xs text-muted-foreground">JOD/mo</span>
+              </div>
+            </Field>
+            <Field label={t("pricing.monthlyMkt")}>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number" min={0} step="0.001" dir="ltr"
+                  value={monthlyMarketing ?? 0}
+                  onChange={(e) => setMonthlyMarketing(Math.max(0, Number(e.target.value) || 0))}
+                  disabled={!overheadOn}
+                />
+                <span className="text-xs text-muted-foreground">JOD/mo</span>
+              </div>
+            </Field>
+            <Field label={t("pricing.expectedUnits")}>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number" min={1} step={1} dir="ltr"
+                  value={expectedMonthlyUnits ?? 30}
+                  onChange={(e) => setExpectedMonthlyUnits(Math.max(1, Math.round(Number(e.target.value) || 1)))}
+                  disabled={!overheadOn}
+                />
+                <span className="text-xs text-muted-foreground">units/mo</span>
+              </div>
+            </Field>
+          </div>
+          <div className="mt-4 rounded-md border bg-muted/30 p-3 text-sm">
+            <div className="font-semibold">{t("pricing.overheadOutcome")}</div>
+            <div className="mt-1 text-muted-foreground">
+              {t("pricing.overheadFormula")
+                .replace("{dep}", (monthlyDepreciation ?? 0).toFixed(3))
+                .replace("{mkt}", (monthlyMarketing ?? 0).toFixed(3))
+                .replace("{units}", String(expectedMonthlyUnits ?? 0))}
+            </div>
+            <div className="mt-2 text-base font-semibold text-primary">
+              {t("pricing.overheadPerUnit")}: {formatJOD(overheadPerUnit, locale)}
+              <span className="ms-2 text-sm font-normal text-muted-foreground">
+                + {formatJOD(packagingPerUnit ?? 0, locale)} {t("pricing.packagingNote")}
+              </span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Jordan market reference ─────────────────────────────────────── */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <span>{t("pricing.marketTitle")}</span>
+            <label className="inline-flex items-center gap-2 text-xs font-normal">
+              <input
+                type="checkbox"
+                className="size-4 accent-[var(--primary)]"
+                checked={marketCheckOn}
+                onChange={(e) => setMarketCheckOn(e.target.checked)}
+              />
+              {t("pricing.marketCheckOn")}
+            </label>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="mb-3 text-xs text-muted-foreground">{t("pricing.marketHint")}</p>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+            {(["battery","digital","smartwatch","automatic","other"] as const).map((k) => (
+              <div key={k} className="rounded-md border p-2">
+                <div className="text-xs font-semibold uppercase text-muted-foreground">{t(`shop.${k}` as never)}</div>
+                <div className="mt-1 flex items-center gap-2">
+                  <Input
+                    type="number" min={0} step={1} dir="ltr"
+                    value={bands[k].low}
+                    onChange={(e) => setBands({ ...bands, [k]: { ...bands[k], low: Math.max(0, Number(e.target.value) || 0) } })}
+                    className="h-7 w-16 px-2 text-xs"
+                  />
+                  <span className="text-xs text-muted-foreground">—</span>
+                  <Input
+                    type="number" min={0} step={1} dir="ltr"
+                    value={bands[k].high}
+                    onChange={(e) => setBands({ ...bands, [k]: { ...bands[k], high: Math.max(0, Number(e.target.value) || 0) } })}
+                    className="h-7 w-16 px-2 text-xs"
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* ── Strategy controls ──────────────────────────────────────────── */}
       <Card className="mb-6">
@@ -452,6 +710,9 @@ export default function PricingPage() {
                     <SortableHead sortKey="cost" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle} align="end">
                       {t("pricing.cost")}
                     </SortableHead>
+                    <SortableHead sortKey="landed" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle} align="end">
+                      {t("pricing.trueCost")}
+                    </SortableHead>
                     <SortableHead sortKey="current" current={sort.sortKey} dir={sort.sortDir} onToggle={sort.toggle} align="end">
                       {t("pricing.currentPrice")}
                     </SortableHead>
@@ -503,6 +764,9 @@ export default function PricingPage() {
                           />
                         </TableCell>
                         <TableCell className="text-end">{formatJOD(r.avg_unit_cost, locale)}</TableCell>
+                        <TableCell className="text-end text-muted-foreground" title={t("pricing.trueCostHint")}>
+                          {formatJOD(r.landed, locale)}
+                        </TableCell>
                         <TableCell className="text-end">
                           {r.current > 0 ? formatJOD(r.current, locale) : <span className="text-muted-foreground">—</span>}
                         </TableCell>
@@ -517,6 +781,25 @@ export default function PricingPage() {
                         </TableCell>
                         <TableCell className="text-end font-medium text-primary">
                           {r.suggested > 0 ? formatJOD(r.suggested, locale) : <span className="text-muted-foreground">—</span>}
+                          {marketCheckOn && r.suggested > 0 && (
+                            <div className="mt-0.5">
+                              {r.marketPos === "above" && (
+                                <Badge variant="destructive" className="text-[10px]">
+                                  {t("pricing.flagAboveMarket")} ({r.marketBand.low}–{r.marketBand.high})
+                                </Badge>
+                              )}
+                              {r.marketPos === "below" && (
+                                <Badge variant="warning" className="text-[10px]">
+                                  {t("pricing.flagBelowMarket")} ({r.marketBand.low}–{r.marketBand.high})
+                                </Badge>
+                              )}
+                              {r.marketPos === "in" && r.watch_type && (
+                                <Badge variant="success" className="text-[10px]">
+                                  {t("pricing.flagInMarket")}
+                                </Badge>
+                              )}
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell className="text-end">
                           {r.suggested > 0 && r.current > 0 ? (
@@ -608,6 +891,8 @@ function FormulaExplainer({
   suggest,
   locale,
   t,
+  packagingPerUnit,
+  overheadPerUnit,
 }: {
   sample: Row | undefined;
   method: Method;
@@ -620,8 +905,12 @@ function FormulaExplainer({
   suggest: (cost: number) => number;
   locale: string;
   t: (k: import("@/lib/i18n/dictionaries").DictKey) => string;
+  packagingPerUnit: number;
+  overheadPerUnit: number;
 }) {
-  const cost = sample?.avg_unit_cost ?? 0;
+  const rawCost = sample?.avg_unit_cost ?? 0;
+  // Step labelled "cost" in the strategy box is now the TRUE landed cost.
+  const cost = round3(rawCost + packagingPerUnit + overheadPerUnit);
   // Step 1: pre-GST price from the strategy
   let preGst = 0;
   let stepLabel = "";
@@ -658,25 +947,37 @@ function FormulaExplainer({
   return (
     <div className="space-y-3 text-sm">
       <p className="rounded-md border border-sky-200 bg-sky-50 p-3 text-sky-900">{copy}</p>
-      <div className="grid gap-3 sm:grid-cols-5">
-        <StepBox n={1} stepLabel={t("pricing.stepLabel")} label={t("pricing.stepCost")} value={formatJOD(cost, locale)} />
-        <StepBox n={2} stepLabel={t("pricing.stepLabel")} label={t("pricing.stepStrategy")} value={`= ${formatJOD(preGst, locale)}`} sub={stepLabel} />
+      <div className="grid gap-3 sm:grid-cols-6">
         <StepBox
-          n={3}
+          n={1}
+          stepLabel={t("pricing.stepLabel")}
+          label={t("pricing.stepCost")}
+          value={formatJOD(rawCost, locale)}
+        />
+        <StepBox
+          n={2}
+          stepLabel={t("pricing.stepLabel")}
+          label={t("pricing.trueCost")}
+          value={`= ${formatJOD(cost, locale)}`}
+          sub={`+ ${packagingPerUnit.toFixed(3)} ${t("pricing.packagingNote")} + ${overheadPerUnit.toFixed(3)} ${t("pricing.overheadShare")}`}
+        />
+        <StepBox n={3} stepLabel={t("pricing.stepLabel")} label={t("pricing.stepStrategy")} value={`= ${formatJOD(preGst, locale)}`} sub={stepLabel} />
+        <StepBox
+          n={4}
           stepLabel={t("pricing.stepLabel")}
           label={includeGst ? t("pricing.gstApplied").replace("{p}", String(gstRate)) : t("pricing.gstIncluded")}
           value={`= ${formatJOD(withGst, locale)}`}
           sub={includeGst ? `${preGst.toFixed(3)} × ${(1 + gstRate / 100).toFixed(2)}` : t("pricing.noChange")}
         />
         <StepBox
-          n={4}
+          n={5}
           stepLabel={t("pricing.stepLabel")}
           label={t("pricing.stepRound")}
           value={`= ${formatJOD(final, locale)}`}
           sub={rounding}
         />
         <StepBox
-          n={5}
+          n={6}
           stepLabel={t("pricing.stepLabel")}
           tone="primary"
           label={t("pricing.stepFinal")}
