@@ -18,6 +18,7 @@ import {
   Inbox,
   Gift,
   Star,
+  Calculator,
 } from "lucide-react";
 import { Brand } from "@/components/brand";
 import { useI18n } from "@/lib/i18n/provider";
@@ -27,6 +28,7 @@ import { cn } from "@/lib/utils";
 const NAV: { href: string; key: DictKey; icon: React.ElementType }[] = [
   { href: "/", key: "nav.dashboard", icon: LayoutDashboard },
   { href: "/products", key: "nav.products", icon: Watch },
+  { href: "/pricing", key: "nav.pricing", icon: Calculator },
   { href: "/purchases", key: "nav.purchases", icon: PackageOpen },
   { href: "/sales", key: "nav.sales", icon: Receipt },
   { href: "/requests", key: "nav.requests", icon: Inbox },
