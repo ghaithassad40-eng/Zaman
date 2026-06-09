@@ -255,6 +255,7 @@ export default function ShopPage() {
                   <option value="">{t("shop.allTypes")}</option>
                   <option value="battery">{t("shop.battery")}</option>
                   <option value="automatic">{t("shop.automatic")}</option>
+                  <option value="digital">{t("shop.digital")}</option>
                   <option value="smartwatch">{t("shop.smartwatch")}</option>
                   <option value="other">{t("shop.otherType")}</option>
                 </Select>
