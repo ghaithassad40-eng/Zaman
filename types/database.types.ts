@@ -345,6 +345,42 @@ export type Database = {
         }
         Relationships: []
       }
+      depreciation_postings: {
+        Row: {
+          amount: number
+          asset_name: string
+          asset_ref: string
+          id: string
+          note: string | null
+          period_month: number
+          period_year: number
+          posted_at: string
+          posted_by: string | null
+        }
+        Insert: {
+          amount: number
+          asset_name: string
+          asset_ref: string
+          id?: string
+          note?: string | null
+          period_month: number
+          period_year: number
+          posted_at?: string
+          posted_by?: string | null
+        }
+        Update: {
+          amount?: number
+          asset_name?: string
+          asset_ref?: string
+          id?: string
+          note?: string | null
+          period_month?: number
+          period_year?: number
+          posted_at?: string
+          posted_by?: string | null
+        }
+        Relationships: []
+      }
       dividend_shares: {
         Row: {
           account_id: string | null
@@ -1659,6 +1695,14 @@ export type Database = {
       pay_dividend_share: {
         Args: { p_account_id: string; p_date: string; p_share_id: string }
         Returns: undefined
+      }
+      process_depreciation: {
+        Args: { p_month: number; p_year: number }
+        Returns: {
+          posted_count: number
+          skipped_count: number
+          total_amount: number
+        }[]
       }
       receive_purchase: { Args: { p_purchase_id: string }; Returns: undefined }
       recompute_inventory: {

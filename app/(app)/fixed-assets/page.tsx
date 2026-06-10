@@ -1,19 +1,22 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import Link from "next/link";
-import { Boxes, Building2, Search } from "lucide-react";
+import { Boxes, Building2, CalendarClock, Loader2, Search } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/provider";
 import { PageHeader } from "@/components/page-header";
 import { ExportButton } from "@/components/export-button";
 import { SortableHead, useSort } from "@/components/ui/sortable-head";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -109,6 +112,10 @@ export default function FixedAssetsPage() {
         <KpiCard label={t("fixedAssets.accumulatedDep")} value={formatJOD(totals.acc, locale)} />
         <KpiCard label={t("fixedAssets.monthlyDep")} value={formatJOD(totals.monthly, locale)} />
       </div>
+
+      {/* Monthly depreciation processor — pick a month and book the entries */}
+      <DepreciationProcessor />
+
 
       <div className="mb-4 flex items-center gap-2">
         <div className="relative flex-1 max-w-sm">
@@ -216,6 +223,178 @@ function KpiCard({ label, value, accent }: { label: string; value: string; accen
       <CardContent className="p-4">
         <div className="text-xs text-muted-foreground">{label}</div>
         <div className={"mt-1 text-xl font-bold " + (accent ? "text-primary" : "")}>{value}</div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Monthly depreciation processor.
+ *
+ * The operator picks a year + month and clicks "Process". An RPC runs through
+ * every active asset (from v_assets) whose start date is on/before the end of
+ * the chosen month and whose depreciable life hasn't been exhausted yet, then
+ * inserts one depreciation_postings row per asset/month. The same period can
+ * be re-run safely — already-posted (asset, year, month) tuples are skipped,
+ * never duplicated.
+ *
+ * The recent-postings table below the picker is the audit trail.
+ */
+function DepreciationProcessor() {
+  const { t, locale } = useI18n();
+  const supabase = createClient();
+  const qc = useQueryClient();
+  const now = new Date();
+  const [year, setYear] = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth() + 1);
+
+  type Posting = {
+    id: string;
+    asset_ref: string;
+    asset_name: string;
+    period_year: number;
+    period_month: number;
+    amount: number;
+    posted_at: string;
+  };
+
+  const { data: postings } = useQuery({
+    queryKey: ["depreciation-postings"],
+    queryFn: async (): Promise<Posting[]> => {
+      const { data, error } = await supabase
+        .from("depreciation_postings")
+        .select("id, asset_ref, asset_name, period_year, period_month, amount, posted_at")
+        .order("period_year", { ascending: false })
+        .order("period_month", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return (data ?? []) as Posting[];
+    },
+  });
+
+  // Group postings by period for the summary line.
+  const byPeriod = useMemo(() => {
+    const m = new Map<string, { year: number; month: number; count: number; total: number; postedAt: string }>();
+    for (const p of postings ?? []) {
+      const k = `${p.period_year}-${p.period_month}`;
+      const cur = m.get(k) ?? { year: p.period_year, month: p.period_month, count: 0, total: 0, postedAt: p.posted_at };
+      cur.count += 1;
+      cur.total += Number(p.amount);
+      if (p.posted_at > cur.postedAt) cur.postedAt = p.posted_at;
+      m.set(k, cur);
+    }
+    return Array.from(m.values()).sort((a, b) =>
+      b.year !== a.year ? b.year - a.year : b.month - a.month,
+    );
+  }, [postings]);
+
+  const run = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.rpc("process_depreciation", {
+        p_year: year,
+        p_month: month,
+      });
+      if (error) throw error;
+      const row = Array.isArray(data) ? data[0] : data;
+      return {
+        posted: Number(row?.posted_count ?? 0),
+        total: Number(row?.total_amount ?? 0),
+        skipped: Number(row?.skipped_count ?? 0),
+      };
+    },
+    onSuccess: (r) => {
+      if (r.posted > 0) {
+        toast.success(
+          t("fixedAssets.processOk")
+            .replace("{n}", String(r.posted))
+            .replace("{amt}", formatJOD(r.total, locale)),
+        );
+      } else if (r.skipped > 0) {
+        toast.info(t("fixedAssets.processAllSkipped").replace("{n}", String(r.skipped)));
+      } else {
+        toast.info(t("fixedAssets.processNothing"));
+      }
+      qc.invalidateQueries({ queryKey: ["depreciation-postings"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  // Generate options once — last 5 years + next 1 keep the dropdown small.
+  const years = useMemo(() => {
+    const y0 = now.getFullYear();
+    return [y0 - 4, y0 - 3, y0 - 2, y0 - 1, y0, y0 + 1];
+  }, [now]);
+
+  return (
+    <Card className="mb-6">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <CalendarClock className="size-4" aria-hidden />
+          {t("fixedAssets.processTitle")}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className="mb-3 text-sm text-muted-foreground">{t("fixedAssets.processHint")}</p>
+        <div className="grid items-end gap-3 sm:grid-cols-[1fr_1fr_auto]">
+          <div className="space-y-1.5">
+            <Label>{t("common.year") || "Year"}</Label>
+            <Select value={String(year)} onChange={(e) => setYear(Number(e.target.value))}>
+              {years.map((y) => <option key={y} value={y}>{y}</option>)}
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>{t("common.month") || "Month"}</Label>
+            <Select value={String(month)} onChange={(e) => setMonth(Number(e.target.value))}>
+              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                <option key={m} value={m}>
+                  {new Date(2000, m - 1, 1).toLocaleString(locale === "ar" ? "ar-JO" : "en", { month: "long" })}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <Button onClick={() => run.mutate()} disabled={run.isPending}>
+            {run.isPending && <Loader2 className="size-4 animate-spin" />}
+            <CalendarClock className="size-4" />
+            {t("fixedAssets.processBtn")}
+          </Button>
+        </div>
+
+        {byPeriod.length > 0 && (
+          <div className="mt-5">
+            <div className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
+              {t("fixedAssets.recentPostings")}
+            </div>
+            <div className="overflow-x-auto rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t("fixedAssets.period")}</TableHead>
+                    <TableHead className="text-end">{t("fixedAssets.assetsCount")}</TableHead>
+                    <TableHead className="text-end">{t("fixedAssets.totalAmount")}</TableHead>
+                    <TableHead className="text-end">{t("fixedAssets.postedAt")}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {byPeriod.slice(0, 12).map((p) => (
+                    <TableRow key={`${p.year}-${p.month}`}>
+                      <TableCell className="font-medium">
+                        {new Date(p.year, p.month - 1, 1).toLocaleString(locale === "ar" ? "ar-JO" : "en", {
+                          month: "long",
+                          year: "numeric",
+                        })}
+                      </TableCell>
+                      <TableCell className="text-end">{p.count}</TableCell>
+                      <TableCell className="text-end font-medium">{formatJOD(p.total, locale)}</TableCell>
+                      <TableCell className="text-end text-xs text-muted-foreground">
+                        {new Date(p.postedAt).toLocaleDateString()}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
