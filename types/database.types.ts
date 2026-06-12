@@ -119,6 +119,94 @@ export type Database = {
           },
         ]
       }
+      bulk_price_changes: {
+        Row: {
+          id: string
+          new_price: number
+          old_price: number
+          product_id: string
+          run_id: string
+        }
+        Insert: {
+          id?: string
+          new_price: number
+          old_price: number
+          product_id: string
+          run_id: string
+        }
+        Update: {
+          id?: string
+          new_price?: number
+          old_price?: number
+          product_id?: string
+          run_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bulk_price_changes_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bulk_price_changes_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "v_shop_availability"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "bulk_price_changes_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "bulk_price_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bulk_price_runs: {
+        Row: {
+          applied_at: string
+          applied_by: string | null
+          id: string
+          kind: string
+          note: string | null
+          products_count: number
+          reversed_at: string | null
+          reversed_by: string | null
+          scope_label: string
+          total_markdown: number
+          value: number
+        }
+        Insert: {
+          applied_at?: string
+          applied_by?: string | null
+          id?: string
+          kind: string
+          note?: string | null
+          products_count: number
+          reversed_at?: string | null
+          reversed_by?: string | null
+          scope_label: string
+          total_markdown: number
+          value: number
+        }
+        Update: {
+          applied_at?: string
+          applied_by?: string | null
+          id?: string
+          kind?: string
+          note?: string | null
+          products_count?: number
+          reversed_at?: string | null
+          reversed_by?: string | null
+          scope_label?: string
+          total_markdown?: number
+          value?: number
+        }
+        Relationships: []
+      }
       cash_transactions: {
         Row: {
           account_id: string
@@ -1613,6 +1701,21 @@ export type Database = {
         Args: { p_new_qty: number; p_note?: string; p_product_id: string }
         Returns: undefined
       }
+      apply_bulk_discount: {
+        Args: {
+          p_brand?: string
+          p_gender?: string
+          p_kind: string
+          p_note?: string
+          p_value: number
+          p_watch_type?: string
+        }
+        Returns: {
+          products_count: number
+          run_id: string
+          total_markdown: number
+        }[]
+      }
       assign_delivery_vendor: {
         Args: { p_sale_id: string; p_vendor_id: string }
         Returns: undefined
@@ -1718,6 +1821,12 @@ export type Database = {
       reopen_fiscal_year: { Args: { p_id: string }; Returns: undefined }
       return_sale: { Args: { p_sale_id: string }; Returns: undefined }
       reverse_purchase: { Args: { p_purchase_id: string }; Returns: undefined }
+      revert_bulk_discount: {
+        Args: { p_run_id: string }
+        Returns: {
+          restored_count: number
+        }[]
+      }
       set_txn_reconciled: {
         Args: { p_txn: string; p_value: boolean }
         Returns: undefined

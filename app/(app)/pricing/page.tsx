@@ -681,6 +681,9 @@ export default function PricingPage() {
         </CardContent>
       </Card>
 
+      {/* ── Bulk discount ──────────────────────────────────────────────── */}
+      <BulkDiscount />
+
       {/* ── Per-product table ──────────────────────────────────────────── */}
       <Card>
         <CardHeader className="flex-row items-center justify-between">
@@ -988,6 +991,313 @@ function FormulaExplainer({
         {t("pricing.formulaFooter").replace("{name}", sample?.name ?? "—")}
       </p>
     </div>
+  );
+}
+
+/**
+ * Bulk discount panel.
+ *
+ * Lets the operator knock a percentage or a fixed JOD amount off every
+ * product's default_selling_price, with optional filters (gender, watch type,
+ * brand). A "Preview" pass runs the same math on the client so the operator
+ * sees how many products will be touched and what the total markdown is
+ * BEFORE writing anything to the database.
+ *
+ * When applied, the server-side RPC takes per-product snapshots of the old
+ * price into bulk_price_changes, so any run can be reverted in one click.
+ * The "Recent runs" table below the form is the audit trail with a Revert
+ * button next to runs that haven't been undone yet.
+ */
+function BulkDiscount() {
+  const { t, locale } = useI18n();
+  const supabase = createClient();
+  const qc = useQueryClient();
+  const [kind, setKind] = useState<"percent" | "fixed">("percent");
+  const [value, setValue] = useState<number>(10);
+  const [gender, setGender] = useState("");
+  const [watchType, setWatchType] = useState("");
+  const [brand, setBrand] = useState("");
+  const [note, setNote] = useState("");
+
+  // Load the catalogue (just what we need to preview the math client-side).
+  // Reuses the same "pricing-rows" cache when the parent page already fetched.
+  const { data: catalogue } = useQuery({
+    queryKey: ["bulk-discount-catalogue"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("products")
+        .select("id, default_selling_price, gender, watch_type, brand")
+        .eq("is_active", true)
+        .is("deleted_at", null);
+      if (error) throw error;
+      return (data ?? []).map((r) => ({
+        id: r.id as string,
+        price: Number(r.default_selling_price ?? 0),
+        gender: (r.gender as string | null) ?? null,
+        watch_type: (r.watch_type as string | null) ?? null,
+        brand: (r.brand as string | null) ?? null,
+      }));
+    },
+  });
+
+  // Distinct brands for the brand filter dropdown.
+  const brands = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of catalogue ?? []) if (r.brand) set.add(r.brand);
+    return Array.from(set).sort();
+  }, [catalogue]);
+
+  // Live preview computation. We compute the same way the server does so the
+  // operator sees the truth — including the 0.001 floor and the > 0 guard.
+  const preview = useMemo(() => {
+    if (!catalogue) return null;
+    const eligible = catalogue.filter((r) => {
+      if (r.price <= 0) return false;
+      if (gender && r.gender !== gender) return false;
+      if (watchType && r.watch_type !== watchType) return false;
+      if (brand && r.brand !== brand) return false;
+      return true;
+    });
+    let markdown = 0, count = 0;
+    for (const r of eligible) {
+      const next =
+        kind === "percent"
+          ? Math.max(0.001, round3(r.price * (1 - value / 100)))
+          : Math.max(0.001, round3(r.price - value));
+      if (next < r.price) {
+        count += 1;
+        markdown += r.price - next;
+      }
+    }
+    return { count, markdown: round3(markdown) };
+  }, [catalogue, kind, value, gender, watchType, brand]);
+
+  type Run = {
+    id: string;
+    applied_at: string;
+    kind: string;
+    value: number;
+    scope_label: string;
+    products_count: number;
+    total_markdown: number;
+    reversed_at: string | null;
+    note: string | null;
+  };
+
+  const { data: runs } = useQuery({
+    queryKey: ["bulk-discount-runs"],
+    queryFn: async (): Promise<Run[]> => {
+      const { data, error } = await supabase
+        .from("bulk_price_runs")
+        .select("id, applied_at, kind, value, scope_label, products_count, total_markdown, reversed_at, note")
+        .order("applied_at", { ascending: false })
+        .limit(10);
+      if (error) throw error;
+      return (data ?? []) as Run[];
+    },
+  });
+
+  const apply = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.rpc("apply_bulk_discount", {
+        p_kind: kind,
+        p_value: value,
+        p_gender: gender || undefined,
+        p_watch_type: watchType || undefined,
+        p_brand: brand || undefined,
+        p_note: note.trim() || undefined,
+      });
+      if (error) throw error;
+      const row = Array.isArray(data) ? data[0] : data;
+      return {
+        count: Number(row?.products_count ?? 0),
+        markdown: Number(row?.total_markdown ?? 0),
+      };
+    },
+    onSuccess: (r) => {
+      if (r.count === 0) {
+        toast.info(t("pricing.discountNoChange"));
+      } else {
+        toast.success(
+          t("pricing.discountApplied")
+            .replace("{n}", String(r.count))
+            .replace("{amt}", formatJOD(r.markdown, locale)),
+        );
+        setNote("");
+      }
+      qc.invalidateQueries({ queryKey: ["pricing-rows"] });
+      qc.invalidateQueries({ queryKey: ["bulk-discount-catalogue"] });
+      qc.invalidateQueries({ queryKey: ["bulk-discount-runs"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const revert = useMutation({
+    mutationFn: async (runId: string) => {
+      const { data, error } = await supabase.rpc("revert_bulk_discount", { p_run_id: runId });
+      if (error) throw error;
+      const row = Array.isArray(data) ? data[0] : data;
+      return Number(row?.restored_count ?? 0);
+    },
+    onSuccess: (n) => {
+      toast.success(t("pricing.discountReverted").replace("{n}", String(n)));
+      qc.invalidateQueries({ queryKey: ["pricing-rows"] });
+      qc.invalidateQueries({ queryKey: ["bulk-discount-catalogue"] });
+      qc.invalidateQueries({ queryKey: ["bulk-discount-runs"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <Card className="mb-6">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Percent className="size-4" aria-hidden /> {t("pricing.discountTitle")}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className="mb-3 text-sm text-muted-foreground">{t("pricing.discountHint")}</p>
+        <div className="grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="space-y-1.5">
+            <Label>{t("pricing.discountKind")}</Label>
+            <Select value={kind} onChange={(e) => setKind(e.target.value as "percent" | "fixed")}>
+              <option value="percent">{t("pricing.discountPercent")}</option>
+              <option value="fixed">{t("pricing.discountFixed")}</option>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>{kind === "percent" ? t("pricing.discountPercentValue") : t("pricing.discountFixedValue")}</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number" min={0} max={kind === "percent" ? 95 : 9999} step="0.001" dir="ltr"
+                value={value}
+                onChange={(e) =>
+                  setValue(
+                    kind === "percent"
+                      ? Math.max(0, Math.min(95, Number(e.target.value) || 0))
+                      : Math.max(0, Number(e.target.value) || 0),
+                  )
+                }
+              />
+              <span className="text-xs text-muted-foreground">{kind === "percent" ? "%" : "JOD"}</span>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>{t("pricing.filterGender")}</Label>
+            <Select value={gender} onChange={(e) => setGender(e.target.value)}>
+              <option value="">{t("shop.allGenders")}</option>
+              <option value="men">{t("shop.men")}</option>
+              <option value="women">{t("shop.women")}</option>
+              <option value="unisex">{t("shop.unisex")}</option>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>{t("pricing.filterWatchType")}</Label>
+            <Select value={watchType} onChange={(e) => setWatchType(e.target.value)}>
+              <option value="">{t("shop.allTypes")}</option>
+              <option value="battery">{t("shop.battery")}</option>
+              <option value="automatic">{t("shop.automatic")}</option>
+              <option value="digital">{t("shop.digital")}</option>
+              <option value="smartwatch">{t("shop.smartwatch")}</option>
+              <option value="other">{t("shop.otherType")}</option>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>{t("pricing.filterBrand")}</Label>
+            <Select value={brand} onChange={(e) => setBrand(e.target.value)}>
+              <option value="">{t("pricing.allBrands")}</option>
+              {brands.map((b) => <option key={b} value={b}>{b}</option>)}
+            </Select>
+          </div>
+        </div>
+
+        <div className="mt-3 space-y-1.5">
+          <Label>{t("pricing.discountNote")}</Label>
+          <Input
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder={t("pricing.discountNotePh")}
+          />
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-md border bg-muted/30 p-3">
+          <div className="text-sm">
+            {preview ? (
+              <>
+                <span className="font-semibold">{preview.count}</span> {t("pricing.discountPreviewCount")}
+                {preview.count > 0 && (
+                  <span className="ms-2 text-muted-foreground">
+                    · {t("pricing.discountPreviewMarkdown")} <strong className="text-primary">{formatJOD(preview.markdown, locale)}</strong>
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className="text-muted-foreground">{t("pricing.discountLoading")}</span>
+            )}
+          </div>
+          <Button
+            onClick={() => apply.mutate()}
+            disabled={apply.isPending || !preview || preview.count === 0 || value <= 0}
+          >
+            {apply.isPending && <Loader2 className="size-4 animate-spin" />}
+            <Percent className="size-4" />
+            {t("pricing.discountApply")}
+          </Button>
+        </div>
+
+        {runs && runs.length > 0 && (
+          <div className="mt-5">
+            <div className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
+              {t("pricing.discountRecentRuns")}
+            </div>
+            <div className="overflow-x-auto rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t("pricing.discountWhen")}</TableHead>
+                    <TableHead>{t("pricing.discountWhat")}</TableHead>
+                    <TableHead>{t("pricing.discountScope")}</TableHead>
+                    <TableHead className="text-end">{t("pricing.discountAffected")}</TableHead>
+                    <TableHead className="text-end">{t("pricing.discountMarkdown")}</TableHead>
+                    <TableHead className="text-end">{t("common.actions")}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {runs.map((r) => (
+                    <TableRow key={r.id} className={r.reversed_at ? "opacity-60" : ""}>
+                      <TableCell className="text-xs">{new Date(r.applied_at).toLocaleString()}</TableCell>
+                      <TableCell>
+                        {r.kind === "percent" ? `${Number(r.value).toFixed(2)}%` : formatJOD(Number(r.value), locale)} {t("pricing.discountOff")}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {r.scope_label}
+                        {r.note && <div className="text-[10px]">{r.note}</div>}
+                      </TableCell>
+                      <TableCell className="text-end">{r.products_count}</TableCell>
+                      <TableCell className="text-end font-medium">{formatJOD(Number(r.total_markdown), locale)}</TableCell>
+                      <TableCell className="text-end">
+                        {r.reversed_at ? (
+                          <Badge variant="secondary" className="text-[10px]">{t("pricing.discountWasReverted")}</Badge>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => revert.mutate(r.id)}
+                            disabled={revert.isPending}
+                          >
+                            {t("pricing.discountRevert")}
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
