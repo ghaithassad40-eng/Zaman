@@ -71,14 +71,25 @@ export default function PrintPurchasePage({ params }: { params: Promise<{ id: st
       if (purchase) {
         const { data: si } = await supabase
           .from("purchase_items")
-          .select("id, name, qty, unit_cost_jod, landed_unit_cost, received, qc_quality, qc_working, qc_repackage, to_return, is_asset, image_url, products(image_urls)")
+          .select("id, name, sku, qty, unit_cost_jod, landed_unit_cost, received, qc_quality, qc_working, qc_repackage, to_return, is_asset, image_url, products(name, sku, image_urls)")
           .eq("purchase_id", purchase.id)
           .order("created_at");
         items = (si ?? []).map((r) => {
-          const prodImages = (r as { products?: { image_urls?: string[] | null } | null }).products?.image_urls ?? null;
+          const product = (r as { products?: { name?: string | null; sku?: string | null; image_urls?: string[] | null } | null }).products ?? null;
+          const prodImages = product?.image_urls ?? null;
+          // Fall back to the linked product's name when the purchase_item
+          // doesn't carry its own (Shein imports + auto-created lines often
+          // leave purchase_items.name null — the readable name lives on the
+          // product). SKU is appended as a hint if both names are missing.
+          const resolvedName =
+            (r.name && r.name.trim()) ||
+            (product?.name && product.name.trim()) ||
+            (r.sku && `SKU ${r.sku}`) ||
+            (product?.sku && `SKU ${product.sku}`) ||
+            null;
           return {
             id: r.id,
-            name: r.name,
+            name: resolvedName,
             qty: Number(r.qty),
             unit_cost_jod: Number(r.unit_cost_jod ?? 0),
             landed_unit_cost: Number(r.landed_unit_cost ?? 0),
