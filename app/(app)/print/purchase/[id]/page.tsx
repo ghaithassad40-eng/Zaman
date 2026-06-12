@@ -401,7 +401,7 @@ function ItemsTable({ doc, items, fmtMoney }: { doc: Doc; items: Item[]; fmtMone
   if (doc === "order") headers = (
     <tr className="bg-[#f3efe6] text-left text-[9pt] text-[#4a3a18]">
       <th className="w-14 border border-[#e7e0d1] p-2"></th>
-      <th className="border border-[#e7e0d1] p-2">Description</th>
+      <th className="border border-[#e7e0d1] p-2">Name</th>
       <th className="w-16 border border-[#e7e0d1] p-2 text-center">Qty</th>
       <th className="w-32 border border-[#e7e0d1] p-2 text-right">Unit cost</th>
       <th className="w-32 border border-[#e7e0d1] p-2 text-right">Line total</th>
@@ -410,7 +410,7 @@ function ItemsTable({ doc, items, fmtMoney }: { doc: Doc; items: Item[]; fmtMone
   else if (doc === "receive") headers = (
     <tr className="bg-[#f3efe6] text-left text-[9pt] text-[#4a3a18]">
       <th className="border border-[#e7e0d1] p-2" style={{ width: 56 }}></th>
-      <th className="border border-[#e7e0d1] p-2">Description</th>
+      <th className="border border-[#e7e0d1] p-2">Name</th>
       <th className="border border-[#e7e0d1] p-2 text-center" style={{ width: 84 }}>Ordered</th>
       <th className="border border-[#e7e0d1] p-2 text-center" style={{ width: 84 }}>Received</th>
       <th className="border border-[#e7e0d1] p-2" style={{ width: 180 }}>Notes</th>
@@ -419,7 +419,7 @@ function ItemsTable({ doc, items, fmtMoney }: { doc: Doc; items: Item[]; fmtMone
   else if (doc === "qc") headers = (
     <tr className="bg-[#f3efe6] text-left text-[9pt] text-[#4a3a18]">
       <th className="border border-[#e7e0d1] p-2" style={{ width: 56 }}></th>
-      <th className="border border-[#e7e0d1] p-2">Description</th>
+      <th className="border border-[#e7e0d1] p-2">Name</th>
       <th className="border border-[#e7e0d1] p-2 text-center" style={{ width: 60 }}>Qty</th>
       <th className="border border-[#e7e0d1] p-2 text-center" style={{ width: 80 }}>Quality</th>
       <th className="border border-[#e7e0d1] p-2 text-center" style={{ width: 80 }}>Working</th>
@@ -429,7 +429,7 @@ function ItemsTable({ doc, items, fmtMoney }: { doc: Doc; items: Item[]; fmtMone
   else headers = (
     <tr className="bg-[#f3efe6] text-left text-[9pt] text-[#4a3a18]">
       <th className="border border-[#e7e0d1] p-2" style={{ width: 56 }}></th>
-      <th className="border border-[#e7e0d1] p-2">Description</th>
+      <th className="border border-[#e7e0d1] p-2">Name</th>
       <th className="border border-[#e7e0d1] p-2 text-center" style={{ width: 64 }}>Qty</th>
       <th className="border border-[#e7e0d1] p-2 text-right" style={{ width: 120 }}>Unit cost</th>
       <th className="border border-[#e7e0d1] p-2" style={{ width: 200 }}>Reason</th>
