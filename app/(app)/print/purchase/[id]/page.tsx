@@ -191,15 +191,23 @@ export default function PrintPurchasePage({ params }: { params: Promise<{ id: st
         <div className="watermark" />
         <div className="sheet-body">
 
-          {/* Header — same brand band on every doc, only the title swaps. */}
+          {/* Header — Zaman logo on the left, doc title on the right.
+              The logo is the gold wordmark shipped at /public/logo.png; the
+              vendor contact info sits below to keep the band clean. */}
           <div className="mb-6 flex items-start justify-between gap-4">
-            <div>
-              <div className="text-2xl font-bold text-[#9a7426]">{company?.name ?? "Zaman Watch"}</div>
-              {company?.name_ar && <div className="text-base text-[#9a7426]">{company.name_ar}</div>}
-              <div className="mt-1 text-[9pt] text-[#7a6e57]">
-                {[company?.address, company?.phone, company?.email].filter(Boolean).join(" · ")}
+            <div className="flex items-start gap-4">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/logo.png"
+                alt="Zaman Watch"
+                className="h-20 w-auto object-contain"
+              />
+              <div>
+                <div className="mt-1 text-[9pt] text-[#7a6e57]">
+                  {[company?.address, company?.phone, company?.email].filter(Boolean).join(" · ")}
+                </div>
+                {company?.tax_number && <div className="text-[9pt] text-[#7a6e57]">Tax No: {company.tax_number}</div>}
               </div>
-              {company?.tax_number && <div className="text-[9pt] text-[#7a6e57]">Tax No: {company.tax_number}</div>}
             </div>
             <div className="text-right">
               <div className="text-xl font-bold tracking-wide">{titles.title}</div>
