@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, PackageOpen, PackageCheck, Loader2, Pencil, Trash2 } from "lucide-react";
+import { Plus, PackageOpen, PackageCheck, Loader2, Pencil, Trash2, Printer } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/provider";
 import { PageHeader } from "@/components/page-header";
@@ -268,6 +268,7 @@ export default function PurchasesPage() {
                             <PackageCheck className="size-4" /> {t("purchases.receive")}
                           </Link>
                         )}
+                        <PrintMenu purchaseId={p.id} />
                         <Button
                           variant="outline"
                           size="sm"
@@ -319,6 +320,51 @@ type ItemEdit = {
   depreciation_start_date: string;
   salvage_value: string;
 };
+
+/** Small dropdown next to each purchase row that lets the operator open one
+ *  of the four printable documents (PO / Receive / QC / Return) in a new tab.
+ *  Keeps the row toolbar uncluttered when no menu is open. */
+function PrintMenu({ purchaseId }: { purchaseId: string }) {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  const docs: { value: string; label: string }[] = [
+    { value: "order", label: t("purchases.printOrder") },
+    { value: "receive", label: t("purchases.printReceive") },
+    { value: "qc", label: t("purchases.printQC") },
+    { value: "return", label: t("purchases.printReturn") },
+  ];
+  return (
+    <div className="relative">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => setOpen((o) => !o)}
+        onBlur={() => setTimeout(() => setOpen(false), 200)}
+        title={t("purchases.print")}
+      >
+        <Printer className="size-4" />
+      </Button>
+      {open && (
+        <div className="absolute end-0 z-20 mt-1 w-44 overflow-hidden rounded-md border bg-card shadow-lg">
+          {docs.map((d) => (
+            <button
+              key={d.value}
+              onMouseDown={(e) => {
+                // Use onMouseDown so the click registers before onBlur closes the menu.
+                e.preventDefault();
+                window.open(`/print/purchase/${purchaseId}?doc=${d.value}`, "_blank");
+                setOpen(false);
+              }}
+              className="block w-full px-3 py-2 text-start text-sm hover:bg-accent"
+            >
+              {d.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function EditPurchaseDialog({ row, onClose }: { row: PurchaseRow | null; onClose: () => void }) {
   const { t } = useI18n();
