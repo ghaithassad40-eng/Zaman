@@ -13,6 +13,14 @@ const securityHeaders = [
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   // Cut off Flash / legacy plugin attack surfaces.
   { key: "X-Permitted-Cross-Domain-Policies", value: "none" },
+  // Don't prefetch DNS for outbound links — saves a quiet leak of who the
+  // user navigates to next.
+  { key: "X-DNS-Prefetch-Control", value: "off" },
+  // Isolate the tab so a malicious popup can't read window.opener and
+  // strip cross-origin embed surfaces — defence-in-depth around the
+  // financial UI.
+  { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+  { key: "Cross-Origin-Resource-Policy", value: "same-site" },
   // Lock down what fancy browser features the page can request.
   {
     key: "Permissions-Policy",
@@ -54,6 +62,19 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Don't advertise the framework via the X-Powered-By response header.
+  // Attackers fingerprint the stack first — one less hint for them.
+  poweredByHeader: false,
+  // Source maps would publish the un-minified source tree at /_next/static.
+  // We never want that in production.
+  productionBrowserSourceMaps: false,
+  // Strip every console.* from the production client bundle (logs would
+  // otherwise reveal table names, RPC names, request shapes). console.error
+  // is kept so genuine browser-runtime crashes can still surface — Sentry
+  // or browser-level error reporting can pick them up if wired later.
+  compiler: {
+    removeConsole: process.env.NODE_ENV === "production" ? { exclude: ["error"] } : false,
+  },
   images: {
     // Allow product images served from Supabase Storage.
     remotePatterns: [{ protocol: "https", hostname: "*.supabase.co" }],

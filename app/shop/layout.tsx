@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ErrorSilencer } from "@/components/error-silencer";
 
 export const metadata: Metadata = {
   title: "Zaman Watch — Shop",
@@ -6,5 +7,10 @@ export const metadata: Metadata = {
 };
 
 export default function ShopLayout({ children }: { children: React.ReactNode }) {
-  return <div className="min-h-screen bg-background">{children}</div>;
+  return (
+    <div className="min-h-screen bg-background">
+      <ErrorSilencer />
+      {children}
+    </div>
+  );
 }

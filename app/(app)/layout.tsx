@@ -2,6 +2,7 @@ import { requirePartner } from "@/lib/auth";
 import { AppSidebar } from "@/components/app-sidebar";
 import { AppTopbar } from "@/components/app-topbar";
 import { NotificationBanner } from "@/components/notifications";
+import { ErrorSilencer } from "@/components/error-silencer";
 
 export default async function AppLayout({
   children,
@@ -20,6 +21,7 @@ export default async function AppLayout({
       <div className="flex min-w-0 flex-1 flex-col">
         <AppTopbar partnerName={partner.full_name} />
         <NotificationBanner />
+        <ErrorSilencer />
         <main className="flex-1 p-4 sm:p-6">{children}</main>
       </div>
     </div>
