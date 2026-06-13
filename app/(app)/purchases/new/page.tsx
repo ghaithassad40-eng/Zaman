@@ -179,12 +179,31 @@ export default function NewPurchasePage() {
       for (const l of valid) {
         let productId = l.productId;
         if (!productId) {
-          const ins = await supabase.from("products").insert({
-            sku: l.newSku.trim(), name: l.newName.trim(), source: "manual", created_by: uid,
-          }).select("id").single();
-          if (ins.error) throw ins.error;
-          productId = ins.data.id;
-          await supabase.from("inventory").insert({ product_id: productId });
+          // Same SKU/color combo may already exist (e.g. re-typing instead of
+          // picking from the dropdown, or two lines for the same SKU in this
+          // PO). The products UNIQUE (sku, color) would block a duplicate
+          // insert, so look up first and reuse the existing row when we
+          // find one. This is how the Excel import already behaves.
+          const sku = l.newSku.trim();
+          // Match the import: blank color is its own bucket, not NULL.
+          const color = "";
+          const existing = await supabase
+            .from("products")
+            .select("id")
+            .eq("sku", sku)
+            .eq("color", color)
+            .is("deleted_at", null)
+            .maybeSingle();
+          if (existing.data?.id) {
+            productId = existing.data.id;
+          } else {
+            const ins = await supabase.from("products").insert({
+              sku, name: l.newName.trim(), source: "manual", created_by: uid,
+            }).select("id").single();
+            if (ins.error) throw ins.error;
+            productId = ins.data.id;
+            await supabase.from("inventory").insert({ product_id: productId });
+          }
         }
 
         const itemErr = await supabase.from("purchase_items").insert({
