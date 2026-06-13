@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { LanguageToggle } from "@/components/language-toggle";
 import { AppSidebar } from "@/components/app-sidebar";
 import { Brand } from "@/components/brand";
+import { NotificationBell } from "@/components/notifications";
 
 export function AppTopbar({ partnerName }: { partnerName: string }) {
   const { t } = useI18n();
@@ -39,6 +40,7 @@ export function AppTopbar({ partnerName }: { partnerName: string }) {
         </div>
 
         <div className="ms-auto flex items-center gap-1">
+          <NotificationBell />
           <LanguageToggle />
           <div className="hidden items-center gap-2 rounded-md px-2 py-1 text-sm text-muted-foreground sm:flex">
             <User className="size-4" />

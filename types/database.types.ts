@@ -809,6 +809,80 @@ export type Database = {
           },
         ]
       }
+      notification_audit_log: {
+        Row: {
+          action: string
+          id: string
+          meta: Json
+          notification_id: string
+          occurred_at: string
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          id?: string
+          meta?: Json
+          notification_id: string
+          occurred_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          id?: string
+          meta?: Json
+          notification_id?: string
+          occurred_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          body: string | null
+          created_at: string
+          dismissed_at: string | null
+          id: string
+          kind: string
+          payload: Json
+          read_at: string | null
+          ref_request_id: string | null
+          title: string
+          user_id: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          dismissed_at?: string | null
+          id?: string
+          kind: string
+          payload?: Json
+          read_at?: string | null
+          ref_request_id?: string | null
+          title: string
+          user_id: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          dismissed_at?: string | null
+          id?: string
+          kind?: string
+          payload?: Json
+          read_at?: string | null
+          ref_request_id?: string | null
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_ref_request_id_fkey"
+            columns: ["ref_request_id"]
+            isOneToOne: false
+            referencedRelation: "product_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       packaging_assets: {
         Row: {
           category: string | null
@@ -1768,6 +1842,10 @@ export type Database = {
       default_account_id: { Args: never; Returns: string }
       default_delivery_vendor: { Args: never; Returns: string }
       delete_dividend: { Args: { p_id: string }; Returns: undefined }
+      fan_out_request_email: {
+        Args: { p_request_id: string }
+        Returns: undefined
+      }
       finalize_receiving: {
         Args: { p_purchase_id: string }
         Returns: undefined
@@ -1785,6 +1863,10 @@ export type Database = {
           p_partner_id: string
         }
         Returns: string
+      }
+      mark_notification: {
+        Args: { p_action: string; p_id: string }
+        Returns: undefined
       }
       match_bank_line: {
         Args: { p_line: string; p_txn: string }
