@@ -263,11 +263,14 @@ export default function PurchasesPage() {
                     </TableCell>
                     <TableCell className="text-end">
                       <div className="flex justify-end gap-1">
-                        {p.status !== "received" && (
-                          <Link href={`/purchases/${p.id}/receive`} className={buttonVariants({ variant: "outline", size: "sm" })}>
-                            <PackageCheck className="size-4" /> {t("purchases.receive")}
-                          </Link>
-                        )}
+                        <Link
+                          href={`/purchases/${p.id}/receive`}
+                          className={buttonVariants({ variant: "outline", size: "sm" })}
+                          title={p.status === "received" ? t("purchases.editReceiveQC") : t("purchases.receive")}
+                        >
+                          <PackageCheck className="size-4" />
+                          {p.status === "received" ? t("purchases.editReceiveQC") : t("purchases.receive")}
+                        </Link>
                         <PrintMenu purchaseId={p.id} />
                         <Button
                           variant="outline"

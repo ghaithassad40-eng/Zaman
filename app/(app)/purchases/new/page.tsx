@@ -179,26 +179,26 @@ export default function NewPurchasePage() {
       for (const l of valid) {
         let productId = l.productId;
         if (!productId) {
-          // Same SKU/color combo may already exist (e.g. re-typing instead of
-          // picking from the dropdown, or two lines for the same SKU in this
-          // PO). The products UNIQUE (sku, color) would block a duplicate
-          // insert, so look up first and reuse the existing row when we
-          // find one. This is how the Excel import already behaves.
+          // Variant identity = (sku, name). Two lines with the same SKU but
+          // different names (e.g. "FOXBOX Black Digital Men" vs
+          // "FOXBOX Blue Digital Men") are DISTINCT products — they should
+          // not collapse into one inventory row. Look up by (sku, name); a
+          // hit means the operator is restocking an existing variant; a
+          // miss means we genuinely create a new one.
           const sku = l.newSku.trim();
-          // Match the import: blank color is its own bucket, not NULL.
-          const color = "";
+          const name = l.newName.trim();
           const existing = await supabase
             .from("products")
             .select("id")
             .eq("sku", sku)
-            .eq("color", color)
+            .eq("name", name)
             .is("deleted_at", null)
             .maybeSingle();
           if (existing.data?.id) {
             productId = existing.data.id;
           } else {
             const ins = await supabase.from("products").insert({
-              sku, name: l.newName.trim(), source: "manual", created_by: uid,
+              sku, name, source: "manual", created_by: uid,
             }).select("id").single();
             if (ins.error) throw ins.error;
             productId = ins.data.id;

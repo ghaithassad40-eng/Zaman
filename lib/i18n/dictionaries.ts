@@ -281,6 +281,11 @@ export const dictionaries = {
     "purchases.landedUnit": "Landed unit cost",
 
     "wf.receiveTitle": "Receive purchase",
+    "wf.editTitle": "Edit receive & QC",
+    "wf.alreadyReceived": "Already received — editing flags only",
+    "wf.saveChanges": "Save changes",
+    "wf.changesSaved": "Changes saved",
+    "purchases.editReceiveQC": "Edit QC",
     "wf.stepReceive": "Receive",
     "wf.stepQc": "Quality control",
     "wf.stepReturns": "Returns",
@@ -1213,6 +1218,11 @@ export const dictionaries = {
     "purchases.landedUnit": "تكلفة الوحدة الواصلة",
 
     "wf.receiveTitle": "استلام المشتريات",
+    "wf.editTitle": "تعديل الاستلام والفحص",
+    "wf.alreadyReceived": "تم الاستلام مسبقاً — تعديل الحقول فقط",
+    "wf.saveChanges": "حفظ التغييرات",
+    "wf.changesSaved": "تم حفظ التغييرات",
+    "purchases.editReceiveQC": "تعديل الفحص",
     "wf.stepReceive": "الاستلام",
     "wf.stepQc": "فحص الجودة",
     "wf.stepReturns": "المرتجعات",

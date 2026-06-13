@@ -200,13 +200,15 @@ export default function ProductsPage() {
       const expectedPrice = r.expected_price ? numOr(r.expected_price) : null;
       const colorTrimmed = (r.color ?? "").trim();
 
-      // Match key for merging: (sku, color). Different color = different
-      // variant; same sku + same color = merge into existing row.
+      // Match key for merging: (sku, name). Different name = different
+      // variant; same sku + same name = merge into existing row. (Color
+      // alone is unreliable because the user-typed name carries the colour
+      // info AND brand/model/feature info.)
       const { data: existing } = await supabase
         .from("products")
         .select("id, opening_qty, actual_cost, default_selling_price, expected_selling_price, avg_selling_price")
         .eq("sku", r.sku.trim())
-        .eq("color", colorTrimmed)
+        .eq("name", derivedName)
         .is("deleted_at", null)
         .limit(1)
         .maybeSingle();

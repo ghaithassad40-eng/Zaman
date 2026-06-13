@@ -68,7 +68,7 @@ export default function ReceiveWizard() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success(t("purchases.received"));
+      toast.success(purchase?.status === "received" ? t("wf.changesSaved") : t("purchases.received"));
       qc.invalidateQueries();
       router.push("/purchases");
     },
@@ -86,8 +86,11 @@ export default function ReceiveWizard() {
   return (
     <>
       <PageHeader
-        title={t("wf.receiveTitle")}
-        description={purchase?.reference || purchase?.doc_no || ""}
+        title={purchase?.status === "received" ? t("wf.editTitle") : t("wf.receiveTitle")}
+        description={
+          [purchase?.reference || purchase?.doc_no, purchase?.status === "received" ? t("wf.alreadyReceived") : null]
+            .filter(Boolean).join(" · ")
+        }
         action={
           <Link href="/purchases" className={buttonVariants({ variant: "outline" })}>
             <ArrowLeft className="size-4" /> {t("common.back")}
@@ -182,7 +185,7 @@ export default function ReceiveWizard() {
               ) : (
                 <Button onClick={() => finalize.mutate()} disabled={finalize.isPending}>
                   {finalize.isPending ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
-                  {t("wf.finalize")}
+                  {purchase?.status === "received" ? t("wf.saveChanges") : t("wf.finalize")}
                 </Button>
               )}
             </div>
