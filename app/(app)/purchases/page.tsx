@@ -316,6 +316,7 @@ type ItemEdit = {
   id: string;
   name: string;
   qty: number;
+  unit_cost_jod: number;
   landed_unit_cost: number;
   is_asset: boolean;
   asset_name: string;
@@ -379,6 +380,10 @@ function EditPurchaseDialog({ row, onClose }: { row: PurchaseRow | null; onClose
     paid_account_id: "",
     order_date: "",
     notes: "",
+    shipping: "0",
+    customs: "0",
+    clearance: "0",
+    other: "0",
   });
   const [items, setItems] = useState<ItemEdit[]>([]);
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
@@ -419,6 +424,10 @@ function EditPurchaseDialog({ row, onClose }: { row: PurchaseRow | null; onClose
       paid_account_id: row.paid_account_id ?? "",
       order_date: row.order_date ?? "",
       notes: row.notes ?? "",
+      shipping: String(row.shipping_cost ?? 0),
+      customs: String(row.customs_cost ?? 0),
+      clearance: String(row.clearance_cost ?? 0),
+      other: String(row.other_cost ?? 0),
     });
   }
   // Sync items state when query returns data for this row. Compare by length
@@ -432,6 +441,7 @@ function EditPurchaseDialog({ row, onClose }: { row: PurchaseRow | null; onClose
         id: pi.id,
         name: pi.name ?? "",
         qty: pi.qty,
+        unit_cost_jod: Number(pi.unit_cost_jod ?? 0),
         landed_unit_cost: Number(pi.landed_unit_cost),
         is_asset: pi.is_asset,
         asset_name: pi.asset_name ?? "",
@@ -449,19 +459,30 @@ function EditPurchaseDialog({ row, onClose }: { row: PurchaseRow | null; onClose
   const save = useMutation({
     mutationFn: async () => {
       if (!row) return;
-      const { error } = await supabase
-        .from("purchases")
-        .update({
-          reference: form.reference.trim() || null,
-          vendor_id: form.vendor_id || null,
-          paid_account_id: form.paid_account_id || null,
-          order_date: form.order_date || undefined,
-          notes: form.notes.trim() || null,
-        })
-        .eq("id", row.id);
+      // One atomic RPC recomputes line allocation + PO totals, syncs the
+      // bank deduction, and (if received) re-syncs inventory qty + cost.
+      const { error } = await supabase.rpc("edit_purchase", {
+        p_purchase_id: row.id,
+        p_lines: items.map((it) => ({
+          id: it.id,
+          name: it.name.trim(),
+          qty: Math.max(0, Math.round(it.qty)),
+          unit_cost_jod: round3(Number(it.unit_cost_jod) || 0),
+        })),
+        p_reference: form.reference.trim() || undefined,
+        p_vendor_id: form.vendor_id || undefined,
+        p_paid_account_id: form.paid_account_id || undefined,
+        p_order_date: form.order_date || undefined,
+        p_notes: form.notes.trim() || undefined,
+        p_shipping: round3(Number(form.shipping) || 0),
+        p_customs: round3(Number(form.customs) || 0),
+        p_clearance: round3(Number(form.clearance) || 0),
+        p_other: round3(Number(form.other) || 0),
+      });
       if (error) throw error;
 
-      // Persist per-line asset / depreciation changes.
+      // Per-line asset / depreciation flags aren't touched by the RPC —
+      // persist them directly.
       for (const it of items) {
         const { error: iErr } = await supabase
           .from("purchase_items")
@@ -496,9 +517,11 @@ function EditPurchaseDialog({ row, onClose }: { row: PurchaseRow | null; onClose
         </DialogHeader>
         {row && (
           <form onSubmit={(e) => { e.preventDefault(); save.mutate(); }} className="grid grid-cols-2 gap-4">
-            <p className="col-span-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
-              {t("purchases.editScopeNote")}
-            </p>
+            {row.status === "received" && (
+              <p className="col-span-2 rounded-md border border-sky-200 bg-sky-50 p-2 text-xs text-sky-800">
+                {t("purchases.editReceivedNote")}
+              </p>
+            )}
             <div className="col-span-2 space-y-1.5">
               <Label>{t("purchases.reference")}</Label>
               <Input value={form.reference} onChange={(e) => setForm({ ...form, reference: e.target.value })} />
@@ -526,27 +549,45 @@ function EditPurchaseDialog({ row, onClose }: { row: PurchaseRow | null; onClose
               <Input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
             </div>
 
-            {/* Per-line asset toggle */}
+            {/* Editable line items — name, qty, unit cost. The landed cost,
+                PO totals and bank deduction are recomputed server-side. */}
             <div className="col-span-2 space-y-2">
-              <Label>{t("purchases.lineAssets")}</Label>
-              <p className="text-xs text-muted-foreground">{t("purchases.lineAssetsHint")}</p>
+              <Label>{t("purchases.lineItems")}</Label>
               <div className="space-y-2">
                 {items.map((it) => (
                   <div key={it.id} className={"rounded-md border p-2.5 " + (it.is_asset ? "border-primary/40 bg-primary/5" : "")}>
-                    <label className="flex items-center justify-between gap-2 text-sm">
-                      <div className="flex items-center gap-2">
+                    <div className="grid grid-cols-[1fr_auto_auto_auto] items-end gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-xs">{t("common.name")}</Label>
+                        <Input value={it.name} onChange={(e) => updateItem(it.id, { name: e.target.value })} />
+                      </div>
+                      <div className="w-16 space-y-1">
+                        <Label className="text-xs">{t("purchases.qty")}</Label>
+                        <Input type="number" min={0} step={1} dir="ltr" value={it.qty}
+                          onChange={(e) => updateItem(it.id, { qty: Math.max(0, Math.round(Number(e.target.value) || 0)) })} />
+                      </div>
+                      <div className="w-24 space-y-1">
+                        <Label className="text-xs">{t("purchases.unitCost")}</Label>
+                        <Input type="number" min={0} step="0.001" dir="ltr" value={it.unit_cost_jod}
+                          onChange={(e) => updateItem(it.id, { unit_cost_jod: Math.max(0, Number(e.target.value) || 0) })} />
+                      </div>
+                      <button type="button" onClick={() => setItems((p) => p.filter((x) => x.id !== it.id))}
+                        className="mb-1.5 text-muted-foreground hover:text-destructive" title={t("common.delete")}>
+                        <Trash2 className="size-4" />
+                      </button>
+                    </div>
+                    <div className="mt-1.5 flex items-center justify-between text-xs text-muted-foreground">
+                      <label className="flex items-center gap-2">
                         <input
                           type="checkbox"
                           className="size-4 accent-[var(--primary)]"
                           checked={it.is_asset}
                           onChange={(e) => updateItem(it.id, { is_asset: e.target.checked })}
                         />
-                        <span className={it.is_asset ? "font-medium text-primary" : ""}>{it.name || "—"}</span>
-                      </div>
-                      <span className="text-xs text-muted-foreground">
-                        ×{it.qty} · {formatJOD(round3(it.qty * it.landed_unit_cost), "en")}
-                      </span>
-                    </label>
+                        <span className={it.is_asset ? "font-medium text-primary" : ""}>{t("purchases.markAsset")}</span>
+                      </label>
+                      <span>{t("purchases.lineTotal")}: {formatJOD(round3(it.qty * it.unit_cost_jod), "en")}</span>
+                    </div>
                     {it.is_asset && (
                       <div className="mt-2 grid grid-cols-3 gap-2">
                         <div className="space-y-1 col-span-3">
@@ -574,6 +615,37 @@ function EditPurchaseDialog({ row, onClose }: { row: PurchaseRow | null; onClose
                 )}
               </div>
             </div>
+
+            {/* Landed-cost overhead — spread proportionally across lines. */}
+            <div className="space-y-1.5">
+              <Label className="text-xs">{t("purchases.shipping")}</Label>
+              <Input type="number" min={0} step="0.001" dir="ltr" value={form.shipping} onChange={(e) => setForm({ ...form, shipping: e.target.value })} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">{t("purchases.customs")}</Label>
+              <Input type="number" min={0} step="0.001" dir="ltr" value={form.customs} onChange={(e) => setForm({ ...form, customs: e.target.value })} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">{t("purchases.clearance")}</Label>
+              <Input type="number" min={0} step="0.001" dir="ltr" value={form.clearance} onChange={(e) => setForm({ ...form, clearance: e.target.value })} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">{t("purchases.other")}</Label>
+              <Input type="number" min={0} step="0.001" dir="ltr" value={form.other} onChange={(e) => setForm({ ...form, other: e.target.value })} />
+            </div>
+
+            {/* Live recomputed total — what the bank will be deducted. */}
+            {(() => {
+              const itemsTotal = items.reduce((s, it) => s + it.qty * it.unit_cost_jod, 0);
+              const overhead = (Number(form.shipping) || 0) + (Number(form.customs) || 0) + (Number(form.clearance) || 0) + (Number(form.other) || 0);
+              const total = round3(itemsTotal + overhead);
+              return (
+                <div className="col-span-2 flex items-center justify-between rounded-md border bg-muted/40 p-3 text-sm">
+                  <span className="text-muted-foreground">{t("purchases.landed")}</span>
+                  <span className="text-lg font-bold text-primary">{formatJOD(total, "en")}</span>
+                </div>
+              );
+            })()}
 
             <div className="col-span-2 flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={onClose}>{t("common.cancel")}</Button>

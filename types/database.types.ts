@@ -1842,6 +1842,22 @@ export type Database = {
       default_account_id: { Args: never; Returns: string }
       default_delivery_vendor: { Args: never; Returns: string }
       delete_dividend: { Args: { p_id: string }; Returns: undefined }
+      edit_purchase: {
+        Args: {
+          p_clearance?: number
+          p_customs?: number
+          p_lines: Json
+          p_notes?: string
+          p_order_date?: string
+          p_other?: number
+          p_paid_account_id?: string
+          p_purchase_id: string
+          p_reference?: string
+          p_shipping?: number
+          p_vendor_id?: string
+        }
+        Returns: undefined
+      }
       fan_out_request_email: {
         Args: { p_request_id: string }
         Returns: undefined
