@@ -64,30 +64,39 @@ function useNotifications() {
 
   // Subscribe to realtime inserts for the current user's notifications. The
   // RLS policy "user_reads_own" filters down to user_id = auth.uid(), so we
-  // just react to anything that comes through and refetch. Wrap the whole
-  // setup so a realtime failure never crashes the page — the bell falls back
-  // to the staleTime-driven refresh.
+  // just react to anything that comes through and refetch. Anything that
+  // can fail here (CSP blocking wss, websocket DNS, server-side rejection)
+  // is swallowed silently — the bell falls back to the staleTime-driven
+  // refresh. No console noise, no error boundary trip, no UI surface.
   useEffect(() => {
     let mounted = true;
     let channel: ReturnType<typeof supabase.channel> | null = null;
+    // Tag the channel with a fresh random suffix per effect run so React
+    // StrictMode's double-mount in dev never sees the same channel twice
+    // (Supabase reuses by-name, and re-subscribing an already-subscribed
+    // channel throws "cannot add postgres_changes after subscribe()").
+    const suffix = `${instanceId}:${Math.floor(Math.random() * 1e9).toString(36)}`;
     try {
-      channel = supabase
-        .channel(`notifications-feed:${instanceId}`)
-        .on(
-          "postgres_changes",
-          { event: "INSERT", schema: "public", table: "notifications" },
-          () => {
-            if (!mounted) return;
-            qc.invalidateQueries({ queryKey: ["notifications"] });
-          },
-        )
-        .subscribe();
-    } catch (e) {
-      console.warn("notification realtime subscribe failed", e);
+      channel = supabase.channel(`notif-${suffix}`);
+      channel.on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "notifications" },
+        () => {
+          if (!mounted) return;
+          qc.invalidateQueries({ queryKey: ["notifications"] });
+        },
+      );
+      // Catch async failures (websocket close, server error) so the
+      // promise rejection doesn't reach window.onerror.
+      Promise.resolve(channel.subscribe()).catch(() => {});
+    } catch {
+      // Sync failure — already silenced.
     }
     return () => {
       mounted = false;
-      if (channel) supabase.removeChannel(channel);
+      if (channel) {
+        try { supabase.removeChannel(channel); } catch { /* ignore */ }
+      }
     };
   }, [supabase, qc, instanceId]);
 

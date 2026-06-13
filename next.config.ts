@@ -37,8 +37,11 @@ const securityHeaders = [
       // Allow product images from Supabase Storage + any https for shop covers
       // (admins may paste URLs from Shein, etc).
       "img-src 'self' data: blob: https:",
-      // API: Supabase + the FX provider configured in .env.
-      "connect-src 'self' https://*.supabase.co https://open.er-api.com",
+      // API + Realtime: Supabase REST (https) + Realtime WebSocket (wss) +
+      // the FX provider configured in .env. The wss entry is required for
+      // notifications/banner — without it the channel never reaches
+      // subscribed state and downstream code throws.
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://open.er-api.com",
       // No frames embedded at all.
       "frame-src 'none'",
       "frame-ancestors 'self'",
