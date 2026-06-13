@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Search, Watch, X, Send, Loader2, Phone, MessageCircle, Star, MessageSquare } from "lucide-react";
+import { Search, Watch, X, Send, Loader2, Phone, MessageCircle, Star, MessageSquare, Heart, ShoppingCart, Trash2, Plus, Minus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/provider";
 import type { DictKey } from "@/lib/i18n/dictionaries";
@@ -23,6 +23,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { formatJODShop } from "@/lib/utils";
+import { useShopCart, useShopFavorites } from "@/lib/shop-storage";
 
 type ShopProduct = {
   id: string;
@@ -77,6 +78,10 @@ export default function ShopPage() {
   const [requested, setRequested] = useState<ShopProduct | null>(null);
   const [reviewing, setReviewing] = useState<ShopProduct | null>(null);
   const [readingReviews, setReadingReviews] = useState<ShopProduct | null>(null);
+  const [cartOpen, setCartOpen] = useState(false);
+  const [favsOpen, setFavsOpen] = useState(false);
+  const cartHook = useShopCart();
+  const favsHook = useShopFavorites();
   // Gender gate: a chooser is shown before the catalogue until the visitor
   // picks Men / Women / Unisex / All. The choice persists in a cookie so
   // returning visitors land straight in their browsed section, but they can
@@ -253,6 +258,32 @@ export default function ShopPage() {
                 <span className="hidden sm:inline">{t("shop.whatsapp")}</span>
               </a>
             )}
+            <button
+              type="button"
+              onClick={() => setFavsOpen(true)}
+              className="relative inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-sm hover:bg-accent"
+              aria-label={t("shop.favorites")}
+            >
+              <Heart className={"size-5 " + (favsHook.count > 0 ? "fill-destructive text-destructive" : "")} aria-hidden />
+              {favsHook.count > 0 && (
+                <span className="absolute -end-1 -top-1 grid h-4 min-w-[16px] place-items-center rounded-full bg-destructive px-1 text-[10px] font-semibold text-destructive-foreground">
+                  {favsHook.count}
+                </span>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setCartOpen(true)}
+              className="relative inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-sm hover:bg-accent"
+              aria-label={t("shop.cart")}
+            >
+              <ShoppingCart className="size-5" aria-hidden />
+              {cartHook.totalItems > 0 && (
+                <span className="absolute -end-1 -top-1 grid h-4 min-w-[16px] place-items-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
+                  {cartHook.totalItems}
+                </span>
+              )}
+            </button>
             <LanguageToggle />
           </div>
         </div>
@@ -414,11 +445,31 @@ export default function ShopPage() {
                         <Button
                           size="sm"
                           variant="ghost"
+                          onClick={() => favsHook.toggle(p.id)}
+                          title={favsHook.has(p.id) ? t("shop.unfavorite") : t("shop.favorite")}
+                          aria-label={favsHook.has(p.id) ? t("shop.unfavorite") : t("shop.favorite")}
+                        >
+                          <Heart className={"size-3.5 " + (favsHook.has(p.id) ? "fill-destructive text-destructive" : "")} aria-hidden />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
                           onClick={() => setReviewing(p)}
                           title={t("shop.writeReview")}
                           aria-label={t("shop.writeReview")}
                         >
                           <MessageSquare className="size-3.5" aria-hidden />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            cartHook.add(p.id, 1);
+                            toast.success(t("shop.addedToCart"));
+                          }}
+                          aria-label={t("shop.addToCart")}
+                        >
+                          <ShoppingCart className="size-3.5" aria-hidden />
                         </Button>
                         <Button
                           size="sm"
@@ -536,6 +587,30 @@ export default function ShopPage() {
       <RequestDialog product={requested} showPrices={showPrices} onClose={() => setRequested(null)} />
       <ReviewDialog product={reviewing} onClose={() => setReviewing(null)} />
       <ReadReviewsDialog product={readingReviews} reviews={readingReviews ? reviewByProduct.get(readingReviews.id)?.rows ?? [] : []} onClose={() => setReadingReviews(null)} />
+      <FavoritesDialog
+        open={favsOpen}
+        onClose={() => setFavsOpen(false)}
+        ids={favsHook.ids}
+        products={data ?? []}
+        onAddToCart={(id) => { cartHook.add(id, 1); toast.success(t("shop.addedToCart")); }}
+        onRemove={(id) => favsHook.toggle(id)}
+        onRequest={(p) => { setFavsOpen(false); setRequested(p); }}
+        showPrices={showPrices}
+        locale={locale}
+        t={t}
+      />
+      <CartDialog
+        open={cartOpen}
+        onClose={() => setCartOpen(false)}
+        cart={cartHook.cart}
+        products={data ?? []}
+        setQty={cartHook.setQty}
+        remove={cartHook.remove}
+        clear={cartHook.clear}
+        showPrices={showPrices}
+        locale={locale}
+        t={t}
+      />
     </>
   );
 }
@@ -834,6 +909,250 @@ function ReadReviewsDialog({ product, reviews, onClose }: { product: ShopProduct
             </div>
           ))}
         </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** Helper: pull the displayable price of a product the same way the cards do. */
+function priceOf(p: ShopProduct): number | null {
+  return (
+    (p.default_selling_price && p.default_selling_price > 0
+      ? p.default_selling_price
+      : null) ??
+    (p.expected_selling_price && p.expected_selling_price > 0
+      ? p.expected_selling_price
+      : null)
+  );
+}
+
+/** Favorites dialog. Lists watches the visitor hearted. Each row can
+ *  be added to cart, opened in a request dialog, or un-favorited. */
+function FavoritesDialog({
+  open, onClose, ids, products, onAddToCart, onRemove, onRequest, showPrices, locale, t,
+}: {
+  open: boolean;
+  onClose: () => void;
+  ids: string[];
+  products: ShopProduct[];
+  onAddToCart: (id: string) => void;
+  onRemove: (id: string) => void;
+  onRequest: (p: ShopProduct) => void;
+  showPrices: boolean;
+  locale: string;
+  t: (k: DictKey) => string;
+}) {
+  const items = ids
+    .map((id) => products.find((p) => p.id === id))
+    .filter((p): p is ShopProduct => !!p);
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent onClose={onClose}>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Heart className="size-4 fill-destructive text-destructive" aria-hidden />
+            {t("shop.favorites")} ({items.length})
+          </DialogTitle>
+        </DialogHeader>
+        {items.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">{t("shop.favoritesEmpty")}</p>
+        ) : (
+          <div className="max-h-[60vh] space-y-2 overflow-y-auto">
+            {items.map((p) => {
+              const name = locale === "ar" && p.name_ar ? p.name_ar : p.name;
+              const px = priceOf(p);
+              return (
+                <div key={p.id} className="flex items-center gap-3 rounded-md border p-2">
+                  <div className="size-12 shrink-0 overflow-hidden rounded bg-muted">
+                    {p.image_urls?.[0] ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={p.image_urls[0]} alt="" referrerPolicy="no-referrer" className="size-full object-cover" />
+                    ) : (
+                      <div className="flex size-full items-center justify-center"><Watch className="size-5 text-muted-foreground" /></div>
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="line-clamp-1 text-sm font-medium">{name}</div>
+                    {showPrices && px != null && (
+                      <div className="text-xs text-primary">{formatJODShop(px, locale)}</div>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 gap-1">
+                    <Button size="sm" variant="outline" onClick={() => onAddToCart(p.id)} aria-label={t("shop.addToCart")}>
+                      <ShoppingCart className="size-3.5" aria-hidden />
+                    </Button>
+                    <Button size="sm" onClick={() => onRequest(p)}>
+                      <Send className="size-3.5" aria-hidden />
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => onRemove(p.id)} aria-label={t("shop.unfavorite")}>
+                      <Trash2 className="size-3.5" aria-hidden />
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** Cart dialog. Lists items, lets visitor change qty (capped at available),
+ *  totals, then collects name+phone+optional email/address and submits one
+ *  product_request per line via the existing RPC. */
+function CartDialog({
+  open, onClose, cart, products, setQty, remove, clear, showPrices, locale, t,
+}: {
+  open: boolean;
+  onClose: () => void;
+  cart: Record<string, number>;
+  products: ShopProduct[];
+  setQty: (id: string, qty: number) => void;
+  remove: (id: string) => void;
+  clear: () => void;
+  showPrices: boolean;
+  locale: string;
+  t: (k: DictKey) => string;
+}) {
+  const supabase = createClient();
+  const qc = useQueryClient();
+  const [form, setForm] = useState({ name: "", phone: "", email: "", address: "", notes: "" });
+
+  // Build the visible rows (product + qty), and cap each qty by available.
+  const rows = Object.entries(cart)
+    .map(([id, qty]) => {
+      const p = products.find((x) => x.id === id);
+      if (!p) return null;
+      const capped = Math.min(p.available, Math.max(1, qty));
+      return { p, qty: capped };
+    })
+    .filter((r): r is { p: ShopProduct; qty: number } => !!r);
+
+  const subtotal = rows.reduce((s, r) => {
+    const px = priceOf(r.p);
+    return s + (px != null ? px * r.qty : 0);
+  }, 0);
+
+  const checkout = useMutation({
+    mutationFn: async () => {
+      if (rows.length === 0) throw new Error("Cart is empty");
+      const errors: string[] = [];
+      for (const r of rows) {
+        const { error } = await supabase.rpc("submit_product_request", {
+          p_product_id: r.p.id,
+          p_qty: r.qty,
+          p_name: form.name.trim(),
+          p_phone: form.phone.trim(),
+          p_email: form.email.trim() || undefined,
+          p_address: form.address.trim() || undefined,
+          p_notes: form.notes.trim() || undefined,
+        });
+        if (error) errors.push(`${r.p.name}: ${error.message}`);
+      }
+      if (errors.length === rows.length) throw new Error(errors[0]);
+      return { sent: rows.length - errors.length, errors };
+    },
+    onSuccess: ({ sent, errors }) => {
+      if (errors.length === 0) toast.success(t("shop.checkoutSent").replace("{n}", String(sent)));
+      else toast.warning(`${sent}/${rows.length}: ${errors[0]}`);
+      clear();
+      setForm({ name: "", phone: "", email: "", address: "", notes: "" });
+      qc.invalidateQueries({ queryKey: ["shop-products"] });
+      onClose();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent onClose={onClose} className="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <ShoppingCart className="size-4" aria-hidden />
+            {t("shop.cart")} ({rows.reduce((s, r) => s + r.qty, 0)})
+          </DialogTitle>
+        </DialogHeader>
+        {rows.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">{t("shop.cartEmpty")}</p>
+        ) : (
+          <div className="space-y-3">
+            <div className="max-h-[40vh] space-y-2 overflow-y-auto">
+              {rows.map(({ p, qty }) => {
+                const name = locale === "ar" && p.name_ar ? p.name_ar : p.name;
+                const px = priceOf(p);
+                return (
+                  <div key={p.id} className="flex items-center gap-3 rounded-md border p-2">
+                    <div className="size-12 shrink-0 overflow-hidden rounded bg-muted">
+                      {p.image_urls?.[0] ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={p.image_urls[0]} alt="" referrerPolicy="no-referrer" className="size-full object-cover" />
+                      ) : (
+                        <div className="flex size-full items-center justify-center"><Watch className="size-5 text-muted-foreground" /></div>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="line-clamp-1 text-sm font-medium">{name}</div>
+                      {showPrices && px != null && (
+                        <div className="text-xs text-muted-foreground">{formatJODShop(px, locale)} × {qty} = <span className="font-medium text-primary">{formatJODShop(px * qty, locale)}</span></div>
+                      )}
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <Button size="sm" variant="outline" disabled={qty <= 1} onClick={() => setQty(p.id, qty - 1)} aria-label={t("shop.qtyMinus")}>
+                        <Minus className="size-3" aria-hidden />
+                      </Button>
+                      <span className="w-6 text-center text-sm font-medium">{qty}</span>
+                      <Button size="sm" variant="outline" disabled={qty >= p.available} onClick={() => setQty(p.id, qty + 1)} aria-label={t("shop.qtyPlus")}>
+                        <Plus className="size-3" aria-hidden />
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => remove(p.id)} aria-label={t("common.delete")}>
+                        <Trash2 className="size-3.5" aria-hidden />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {showPrices && subtotal > 0 && (
+              <div className="flex items-center justify-between rounded-md border bg-muted/30 p-3 text-sm">
+                <span className="font-medium">{t("shop.cartSubtotal")}</span>
+                <span className="text-lg font-bold text-primary">{formatJODShop(subtotal, locale)}</span>
+              </div>
+            )}
+            <form
+              onSubmit={(e) => { e.preventDefault(); checkout.mutate(); }}
+              className="grid grid-cols-2 gap-3"
+            >
+              <div className="col-span-2 space-y-1.5">
+                <Label>{t("shop.yourName")} *</Label>
+                <Input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>{t("shop.phone")} *</Label>
+                <Input required type="tel" dir="ltr" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="07XXXXXXXX" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>{t("shop.email")}</Label>
+                <Input type="email" dir="ltr" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+              </div>
+              <div className="col-span-2 space-y-1.5">
+                <Label>{t("shop.address")}</Label>
+                <Input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
+              </div>
+              <div className="col-span-2 space-y-1.5">
+                <Label>{t("shop.notes")}</Label>
+                <Input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder={t("shop.notesPlaceholder")} />
+              </div>
+              <div className="col-span-2 flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={onClose}>{t("common.cancel")}</Button>
+                <Button type="submit" disabled={checkout.isPending}>
+                  {checkout.isPending ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Send className="size-4" aria-hidden />}
+                  {t("shop.checkoutBtn")}
+                </Button>
+              </div>
+            </form>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
