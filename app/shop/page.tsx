@@ -433,52 +433,60 @@ export default function ShopPage() {
                         ? <span>{stats.avg.toFixed(1)} · {stats.count} {t("shop.reviewsCount")}</span>
                         : <span>{t("shop.noReviewsYet")}</span>}
                     </button>
-                    <div className="flex items-end justify-between pt-1">
-                      <div>
-                        {price != null ? (
-                          <div className="text-lg font-bold text-primary">{formatJODShop(price, locale)}</div>
-                        ) : (
-                          <div className="text-sm text-muted-foreground">{t("shop.contactForPrice")}</div>
-                        )}
-                      </div>
-                      <div className="flex gap-1">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => favsHook.toggle(p.id)}
-                          title={favsHook.has(p.id) ? t("shop.unfavorite") : t("shop.favorite")}
-                          aria-label={favsHook.has(p.id) ? t("shop.unfavorite") : t("shop.favorite")}
-                        >
-                          <Heart className={"size-3.5 " + (favsHook.has(p.id) ? "fill-destructive text-destructive" : "")} aria-hidden />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setReviewing(p)}
-                          title={t("shop.writeReview")}
-                          aria-label={t("shop.writeReview")}
-                        >
-                          <MessageSquare className="size-3.5" aria-hidden />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            cartHook.add(p.id, 1);
-                            toast.success(t("shop.addedToCart"));
-                          }}
-                          aria-label={t("shop.addToCart")}
-                        >
-                          <ShoppingCart className="size-3.5" aria-hidden />
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => setRequested(p)}
-                          aria-label={t("shop.request")}
-                        >
-                          <Send className="size-3.5" aria-hidden /> {t("shop.request")}
-                        </Button>
-                      </div>
+                    {/* Price row — alone so the JOD figure has room to
+                        breathe even at "JOD 123.45". */}
+                    <div className="pt-1">
+                      {price != null ? (
+                        <div className="text-lg font-bold text-primary">{formatJODShop(price, locale)}</div>
+                      ) : (
+                        <div className="text-sm text-muted-foreground">{t("shop.contactForPrice")}</div>
+                      )}
+                    </div>
+                    {/* Action row — three small icon buttons on the left
+                        (favorite / review / cart) and a Request button that
+                        grows to fill the rest so its label can't clip. */}
+                    <div className="flex items-center gap-1">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="size-9 shrink-0 p-0"
+                        onClick={() => favsHook.toggle(p.id)}
+                        title={favsHook.has(p.id) ? t("shop.unfavorite") : t("shop.favorite")}
+                        aria-label={favsHook.has(p.id) ? t("shop.unfavorite") : t("shop.favorite")}
+                      >
+                        <Heart className={"size-4 " + (favsHook.has(p.id) ? "fill-destructive text-destructive" : "")} aria-hidden />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="size-9 shrink-0 p-0"
+                        onClick={() => setReviewing(p)}
+                        title={t("shop.writeReview")}
+                        aria-label={t("shop.writeReview")}
+                      >
+                        <MessageSquare className="size-4" aria-hidden />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="size-9 shrink-0 p-0"
+                        onClick={() => {
+                          cartHook.add(p.id, 1);
+                          toast.success(t("shop.addedToCart"));
+                        }}
+                        title={t("shop.addToCart")}
+                        aria-label={t("shop.addToCart")}
+                      >
+                        <ShoppingCart className="size-4" aria-hidden />
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => setRequested(p)}
+                        className="flex-1"
+                        aria-label={t("shop.request")}
+                      >
+                        <Send className="size-4" aria-hidden /> {t("shop.request")}
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
