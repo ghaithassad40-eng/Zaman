@@ -17,7 +17,7 @@
  * Every life-cycle action (opened, clicked, dismissed) goes through
  * mark_notification() which writes the audit row server-side.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, Check, ChevronRight, X } from "lucide-react";
@@ -41,6 +41,11 @@ type Notif = {
 function useNotifications() {
   const supabase = createClient();
   const qc = useQueryClient();
+  // Each hook instance gets a unique channel name. Multiple components
+  // (Bell + Banner) call useNotifications() in the same tree, and Supabase
+  // doesn't allow two channels with the same name on one client — the
+  // duplicate would error and crash the React tree.
+  const instanceId = useId();
 
   const q = useQuery({
     queryKey: ["notifications"],
@@ -59,25 +64,32 @@ function useNotifications() {
 
   // Subscribe to realtime inserts for the current user's notifications. The
   // RLS policy "user_reads_own" filters down to user_id = auth.uid(), so we
-  // just react to anything that comes through and refetch.
+  // just react to anything that comes through and refetch. Wrap the whole
+  // setup so a realtime failure never crashes the page — the bell falls back
+  // to the staleTime-driven refresh.
   useEffect(() => {
     let mounted = true;
-    const channel = supabase
-      .channel("notifications-feed")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "notifications" },
-        () => {
-          if (!mounted) return;
-          qc.invalidateQueries({ queryKey: ["notifications"] });
-        },
-      )
-      .subscribe();
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    try {
+      channel = supabase
+        .channel(`notifications-feed:${instanceId}`)
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "notifications" },
+          () => {
+            if (!mounted) return;
+            qc.invalidateQueries({ queryKey: ["notifications"] });
+          },
+        )
+        .subscribe();
+    } catch (e) {
+      console.warn("notification realtime subscribe failed", e);
+    }
     return () => {
       mounted = false;
-      supabase.removeChannel(channel);
+      if (channel) supabase.removeChannel(channel);
     };
-  }, [supabase, qc]);
+  }, [supabase, qc, instanceId]);
 
   async function mark(id: string, action: "opened" | "clicked" | "dismissed") {
     await supabase.rpc("mark_notification", { p_id: id, p_action: action });
