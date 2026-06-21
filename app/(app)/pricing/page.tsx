@@ -119,6 +119,10 @@ export default function PricingPage() {
   const [includeGst, setIncludeGst] = useState(DEFAULTS.includeGst);
   const [rounding, setRounding] = useState<Rounding>(DEFAULTS.rounding);
   const [busy, setBusy] = useState<string | null>(null);
+  // Per-row manual price entry (keyed by product id). Empty = use the suggested
+  // price. Lets the operator type any price instead of accepting the strategy's
+  // suggestion, while "Keep current" applies the existing price as-is.
+  const [manual, setManual] = useState<Record<string, string>>({});
 
   // ── Overhead inputs (the big idea of v2) ─────────────────────────────────
   // Each watch has to absorb a slice of the monthly fixed costs (assets
@@ -733,7 +737,18 @@ export default function PricingPage() {
                 </TableHeader>
                 <TableBody>
                   {sortedRows.map((r) => {
-                    const same = round3(r.current) === r.suggested;
+                    // What's currently saved on the product.
+                    const stored = round3(r.default_selling_price);
+                    // The editable price field: the operator's typed value if they
+                    // touched it, otherwise the strategy's suggestion.
+                    const entered = manual[r.id] ?? (r.suggested > 0 ? String(r.suggested) : "");
+                    const enteredNum = round3(Number(entered) || 0);
+                    // Already saved at the entered value → nothing to apply.
+                    const atStored = enteredNum > 0 && enteredNum === stored;
+                    const canApplyEntered = enteredNum > 0 && !atStored && busy !== r.id;
+                    // "Keep current" only does something when the shown current price
+                    // (which may come from expected_selling_price) isn't saved yet.
+                    const canKeepCurrent = r.current > 0 && round3(r.current) !== stored && busy !== r.id;
                     return (
                       <TableRow key={r.id}>
                         <TableCell>
@@ -814,21 +829,46 @@ export default function PricingPage() {
                           )}
                         </TableCell>
                         <TableCell className="text-end">
-                          <Button
-                            size="sm"
-                            variant={same ? "outline" : "default"}
-                            disabled={r.suggested <= 0 || same || busy === r.id}
-                            onClick={() => applyOne.mutate({ id: r.id, price: r.suggested })}
-                          >
-                            {busy === r.id ? (
-                              <Loader2 className="size-3 animate-spin" />
-                            ) : same ? (
-                              <CheckCircle2 className="size-3" />
-                            ) : (
-                              <Save className="size-3" />
-                            )}
-                            {same ? t("pricing.upToDate") : t("pricing.apply")}
-                          </Button>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <Input
+                              type="number" min={0} step="0.001" dir="ltr"
+                              value={entered}
+                              onChange={(e) => setManual({ ...manual, [r.id]: e.target.value })}
+                              placeholder={t("pricing.manualPlaceholder")}
+                              aria-label={t("pricing.manualPlaceholder")}
+                              disabled={busy === r.id}
+                              className="h-8 w-20 px-2 text-end text-xs"
+                            />
+                            <Button
+                              size="sm"
+                              variant={atStored ? "outline" : "default"}
+                              disabled={!canApplyEntered}
+                              onClick={() => applyOne.mutate({ id: r.id, price: enteredNum })}
+                              title={t("pricing.applyManual")}
+                            >
+                              {busy === r.id ? (
+                                <Loader2 className="size-3 animate-spin" />
+                              ) : atStored ? (
+                                <CheckCircle2 className="size-3" />
+                              ) : (
+                                <Save className="size-3" />
+                              )}
+                              {atStored ? t("pricing.upToDate") : t("pricing.apply")}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={!canKeepCurrent}
+                              onClick={() => {
+                                const p = round3(r.current);
+                                setManual({ ...manual, [r.id]: String(p) });
+                                applyOne.mutate({ id: r.id, price: p });
+                              }}
+                              title={t("pricing.keepCurrentHint")}
+                            >
+                              {t("pricing.keepCurrent")}
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
