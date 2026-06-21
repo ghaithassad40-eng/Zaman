@@ -16,17 +16,18 @@ export function formatJOD(amount: number | null | undefined, locale = "en"): str
   }).format(n);
 }
 
-/** Customer-facing JOD format with 2 decimal places. The accounting layer
- *  keeps 3-decimal precision (fils) — this is only for the public shop where
- *  ".000" looks like a software glitch to non-finance visitors. */
+/** Customer-facing shop price: whole Jordanian dinars with the short "JD" code
+ *  (Arabic: "د.أ"). The catalogue is priced in round dinars, and decimals like
+ *  ".000"/".50" read as a software glitch to non-finance shoppers, so the price
+ *  is rounded to the nearest whole JD for display (half rounds up). The
+ *  accounting layer (formatJOD) keeps full 3-decimal fils precision and is
+ *  unaffected by this. */
 export function formatJODShop(amount: number | null | undefined, locale = "en"): string {
-  const n = Number(amount ?? 0);
-  return new Intl.NumberFormat(locale === "ar" ? "ar-JO" : "en-JO", {
-    style: "currency",
-    currency: "JOD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+  const n = Math.round(Number(amount ?? 0));
+  const formatted = new Intl.NumberFormat(locale === "ar" ? "ar-JO" : "en-JO", {
+    maximumFractionDigits: 0,
   }).format(n);
+  return locale === "ar" ? `${formatted} د.أ` : `${formatted} JD`;
 }
 
 /** Plain number with 3 decimals (no currency symbol). */
