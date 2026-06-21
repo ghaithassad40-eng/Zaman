@@ -975,6 +975,7 @@ function ProductDialog({
               <option value="automatic">{t("shop.automatic")}</option>
               <option value="digital">{t("shop.digital")}</option>
               <option value="smartwatch">{t("shop.smartwatch")}</option>
+              <option value="accessories">{t("shop.accessories")}</option>
               <option value="other">{t("shop.otherType")}</option>
             </Select>
           </div>

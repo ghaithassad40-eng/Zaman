@@ -93,6 +93,7 @@ const JORDAN_BANDS_DEFAULT: Record<string, { low: number; high: number }> = {
   smartwatch: { low: 15, high: 50 },
   automatic: { low: 25, high: 80 },
   other: { low: 10, high: 40 },
+  accessories: { low: 3, high: 30 },
   unknown: { low: 10, high: 40 },
 };
 
@@ -591,7 +592,7 @@ export default function PricingPage() {
         <CardContent>
           <p className="mb-3 text-xs text-muted-foreground">{t("pricing.marketHint")}</p>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-            {(["battery","digital","smartwatch","automatic","other"] as const).map((k) => (
+            {(["battery","digital","smartwatch","automatic","other","accessories"] as const).map((k) => (
               <div key={k} className="rounded-md border p-2">
                 <div className="text-xs font-semibold uppercase text-muted-foreground">{t(`shop.${k}` as never)}</div>
                 <div className="mt-1 flex items-center gap-2">
@@ -1239,6 +1240,7 @@ function BulkDiscount() {
               <option value="automatic">{t("shop.automatic")}</option>
               <option value="digital">{t("shop.digital")}</option>
               <option value="smartwatch">{t("shop.smartwatch")}</option>
+              <option value="accessories">{t("shop.accessories")}</option>
               <option value="other">{t("shop.otherType")}</option>
             </Select>
           </div>

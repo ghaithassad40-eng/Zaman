@@ -339,6 +339,7 @@ export default function ShopPage() {
                   <option value="automatic">{t("shop.automatic")}</option>
                   <option value="digital">{t("shop.digital")}</option>
                   <option value="smartwatch">{t("shop.smartwatch")}</option>
+                  <option value="accessories">{t("shop.accessories")}</option>
                   <option value="other">{t("shop.otherType")}</option>
                 </Select>
                 <Select value={color} onChange={(e) => setColor(e.target.value)}>
