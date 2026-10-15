@@ -118,7 +118,7 @@ export function InvestorReportDocument({ company, report, preparedFor, about, in
           ) : null}
           <View style={styles.metaItem}>
             <Text style={styles.metaLabel}>Period / الفترة</Text>
-            <Text style={styles.metaValue}>{report.from} → {report.to}</Text>
+            <Text style={styles.metaValue}>{report.from} to {report.to}</Text>
           </View>
           <View style={styles.metaItem}>
             <Text style={styles.metaLabel}>Currency / العملة</Text>

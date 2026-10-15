@@ -17,8 +17,8 @@ function registerFonts() {
     Font.register({
       family: "Amiri",
       fonts: [
-        { src: "https://fonts.gstatic.com/s/amiri/v27/J7aRnpd8CGxBHpUgtUuU.ttf" },
-        { src: "https://fonts.gstatic.com/s/amiri/v27/J7afnpd8CGxBHpSp_Iqr.ttf", fontWeight: 700 },
+        { src: "https://cdn.jsdelivr.net/gh/google/fonts@fffdadf0f0c9cc1ec8b407063424a8bfbee05611/ofl/amiri/Amiri-Regular.ttf" },
+        { src: "https://cdn.jsdelivr.net/gh/google/fonts@fffdadf0f0c9cc1ec8b407063424a8bfbee05611/ofl/amiri/Amiri-Bold.ttf", fontWeight: 700 },
       ],
     });
     fontsRegistered = true;
@@ -401,7 +401,7 @@ export async function downloadAuditorReport(args: AuditorReportArgs) {
     if (msg.toLowerCase().includes("font") || msg.toLowerCase().includes("fetch")) {
       fontsRegistered = false;
       fontsRegisterFailed = true;
-      try { Font.clear(); } catch { /* ignore */ }
+      // Don't Font.clear(): in @react-pdf v4 it also drops the built-in Helvetica. Amiri just goes unused.
       blob = await pdf(<AuditorReportDocument {...args} />).toBlob();
     } else {
       throw err;
