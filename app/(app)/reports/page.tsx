@@ -27,7 +27,8 @@ import { downloadFinancialReport, type ReportSection } from "@/lib/pdf/report";
 import { downloadStatementPdf, type StatementLine } from "@/lib/pdf/statement";
 import { downloadCustomerStatement } from "@/lib/statements";
 import { downloadAuditorReport, type FinSnapshot } from "@/lib/pdf/auditor-report";
-import { ScrollText } from "lucide-react";
+import { ScrollText, Handshake } from "lucide-react";
+import { InvestorReportDialog } from "@/components/investor-report-dialog";
 
 type Financials = {
   pl: { revenue: number; cogs: number; gross_profit: number; delivery_income: number; delivery_expense: number; marketing: number; expenses: number; net_profit: number };
@@ -314,6 +315,7 @@ export default function ReportsPage() {
 
   // ---- PDF: Vendor statement ----
   const [vendId, setVendId] = useState("");
+  const [investorOpen, setInvestorOpen] = useState(false);
   async function vendorPdf() {
     if (!vendId) { toast.error(t("reports.selectVendor")); return; }
     setBusy("vendor");
@@ -427,6 +429,31 @@ export default function ReportsPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Business profile for prospective partners / investors */}
+          <Card className="border-emerald-200 bg-emerald-50/40">
+            <CardContent className="flex flex-wrap items-center justify-between gap-3 p-5">
+              <div className="flex items-start gap-3">
+                <div className="flex size-11 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
+                  <Handshake className="size-5" />
+                </div>
+                <div>
+                  <div className="font-semibold">{t("investor.title")}</div>
+                  <div className="max-w-2xl text-sm text-muted-foreground">{t("investor.hint")}</div>
+                </div>
+              </div>
+              <Button onClick={() => setInvestorOpen(true)}>
+                <FileText className="size-4" /> {t("investor.open")}
+              </Button>
+            </CardContent>
+          </Card>
+          <InvestorReportDialog
+            key={`${range.from}-${range.to}`}
+            open={investorOpen}
+            defaultFrom={range.from}
+            defaultTo={range.to}
+            onClose={() => setInvestorOpen(false)}
+          />
 
           {/* Break-Even quick link */}
           <Link href="/reports/break-even" className="block">

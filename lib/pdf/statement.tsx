@@ -6,7 +6,9 @@ import {
   StyleSheet,
   Font,
   pdf,
+  type DocumentProps,
 } from "@react-pdf/renderer";
+import type { ReactElement } from "react";
 import type { Tables } from "@/types/database.types";
 
 let fontsRegistered = false;
@@ -182,17 +184,28 @@ export function StatementDocument({
 }
 
 export async function downloadStatementPdf(args: StatementArgs & { filename?: string }) {
+  const safe = args.party.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+  await savePdf(() => <StatementDocument {...args} />, args.filename || `statement-${safe}.pdf`);
+}
+
+/** Whether the Arabic font is active (documents should only set fontFamily when it is). */
+export function arabicFontActive() {
+  return fontsRegistered;
+}
+
+/** Render a react-pdf document (retrying without the Arabic font if it fails to load) and download it. */
+export async function savePdf(make: () => ReactElement<DocumentProps>, filename: string) {
   registerFonts();
   let blob: Blob;
   try {
-    blob = await pdf(<StatementDocument {...args} />).toBlob();
+    blob = await pdf(make()).toBlob();
   } catch (err) {
     const msg = (err as Error).message ?? "";
     if (msg.toLowerCase().includes("font") || msg.toLowerCase().includes("fetch")) {
       fontsRegistered = false;
       fontsRegisterFailed = true;
       try { Font.clear(); } catch { /* ignore */ }
-      blob = await pdf(<StatementDocument {...args} />).toBlob();
+      blob = await pdf(make()).toBlob();
     } else {
       throw err;
     }
@@ -200,8 +213,7 @@ export async function downloadStatementPdf(args: StatementArgs & { filename?: st
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  const safe = args.party.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
-  a.download = args.filename || `statement-${safe}.pdf`;
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   a.remove();
